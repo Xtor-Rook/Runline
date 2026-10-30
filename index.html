@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#111214" />
-<title>Runline v1.0 — Agility Trial Planner</title>
+<title>Runline v1.1 — Agility Trial Planner</title>
 <meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
 <meta name="application-name" content="Runline" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -100,7 +100,10 @@ body.mapExpandedOpen{overflow:hidden}
 <div class="app">
   <div class="topbar">
     <div class="brand"><h1>Runline</h1><p>Agility trial planner + run journal</p></div>
-    <button id="exportBtn" class="pill">Export backup</button>
+    <div class="row">
+      <button id="shareBackupBtn" class="pill">Share backup</button>
+      <button id="exportBtn" class="pill">Export backup</button>
+    </div>
   </div>
 
   <div class="tabs">
@@ -299,7 +302,7 @@ body.mapExpandedOpen{overflow:hidden}
         <div class="row" style="margin-top:12px"><button id="installBtn" class="btn">Install Runline</button></div>
         <div id="installHelp" class="footerNote">On iPhone/iPad: open Runline in Safari → Share → Add to Home Screen → Add. Once installed, it opens full-screen and the app shell works offline.</div>
       </div>
-      <div class="card span12"><h3>Backup + restore</h3><div class="row"><input id="importFile" type="file" accept="application/json" style="max-width:430px" /><button id="importBtn" class="btn secondary">Restore backup</button></div><div class="footerNote">Runline stores data in this browser on this device. Export a backup occasionally. Course maps are included in the JSON backup; video files are stored separately and are not included.</div></div>
+      <div class="card span12"><h3>Backup + restore</h3><div class="row"><button id="shareBackupSetupBtn" class="btn">Share backup</button><input id="importFile" type="file" accept="application/json,.json" style="max-width:430px" /><button id="importBtn" class="btn secondary">Restore backup</button></div><div class="footerNote">On iPhone/iPad, Share backup opens the system share sheet so you can save the Runline backup to Proton Drive. Course maps are included; video files remain local and are not included.</div></div>
     </div>
   </section>
 </div>
@@ -667,7 +670,46 @@ function matchingPatternRuns(){const ot=$('patternObstacle')?.value||'',hk=$('pa
 function renderPatternInsights(){const box=$('patternInsights'),list=$('patternRuns');if(!box||!list)return;const runs=matchingPatternRuns();const ot=$('patternObstacle')?.value||'',hk=$('patternHandling')?.value||'';const active=ot||hk;if(!active){box.innerHTML='<div class="empty" style="grid-column:1/-1">Choose an obstacle type, a handling cue, or both to inspect your history.</div>';list.innerHTML='';return}const q=runs.filter(r=>r.result==='Q').length;const issueRuns=runs.filter(r=>{const obs=r.obstacles||[],marks=r.markers||[];const matchedIds=new Set(marks.filter(m=>m.layer==='plan'&&(!hk||m.kind===hk)).map(m=>m.obstacleId).filter(id=>{if(!id)return !ot;const o=obs.find(x=>x.id===id);return !ot||(o&&o.type===ot)}));return marks.some(m=>m.layer==='review'&&m.kind==='issue'&&(matchedIds.size===0||matchedIds.has(m.obstacleId))) }).length;box.innerHTML=`<div class="insight"><div class="value">${runs.length}</div><div class="label">matching runs</div></div><div class="insight"><div class="value">${runs.length?Math.round(q/runs.length*100):0}%</div><div class="label">Q rate</div></div><div class="insight"><div class="value">${issueRuns}</div><div class="label">issues at matched obstacle</div></div>`;list.innerHTML=runs.length?runs.slice(0,8).map(r=>`<div class="item row between"><div><div class="strong">${esc(dogName(r.dogId))} — ${esc(r.className||'Course')}</div><div class="small muted">${esc(trialName(r.trialId))}${r.result?' · '+esc(r.result):''}${r.time?' · '+r.time+'s':''}</div></div><button class="btn secondary mini" onclick="editRun('${r.id}')">Open</button></div>`).join(''):'<div class="empty">No runs match this combination yet.</div>'}
 $('patternObstacle').addEventListener('change',renderPatternInsights);$('patternHandling').addEventListener('change',renderPatternInsights);
 
-$('exportBtn').addEventListener('click',async()=>{const backup=structuredClone(state);for(const run of backup.runs){const live=state.runs.find(r=>r.id===run.id);run.mapData=await mapDataForRun(live)}const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='runline-backup.json';a.click();URL.revokeObjectURL(a.href);toast('Backup exported with course maps.')});
+async function buildBackupFile(){
+  const backup=structuredClone(state);
+  for(const run of backup.runs){
+    const live=state.runs.find(r=>r.id===run.id);
+    run.mapData=await mapDataForRun(live);
+  }
+  const stamp=new Date().toISOString().slice(0,10);
+  return new File([JSON.stringify(backup,null,2)],`runline-backup-${stamp}.json`,{type:'application/json'});
+}
+async function exportBackup(){
+  try{
+    const file=await buildBackupFile();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(file);
+    a.download=file.name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Backup exported with course maps.');
+  }catch(e){console.error(e);toast('Could not create backup.')}
+}
+async function shareBackup(){
+  try{
+    const file=await buildBackupFile();
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+      await navigator.share({title:'Runline backup',text:'Runline agility data backup',files:[file]});
+      return;
+    }
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(file);
+    a.download=file.name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Share is not available here — backup downloaded instead.');
+  }catch(e){
+    if(e?.name!=='AbortError'){console.error(e);toast('Could not share backup.')}
+  }
+}
+$('exportBtn').addEventListener('click',exportBackup);
+$('shareBackupBtn').addEventListener('click',shareBackup);
+$('shareBackupSetupBtn').addEventListener('click',shareBackup);
 $('importBtn').addEventListener('click',()=>{const f=$('importFile').files?.[0];if(!f)return toast('Choose a backup file.');const rd=new FileReader();rd.onload=async()=>{try{const data=JSON.parse(rd.result);if(!data.dogs||!data.trials||!data.runs)throw Error();for(const run of data.runs){if(run.mapData){await saveMapData(run.id,run.mapData);run.hasMap=true;run.mapData=null}}state=data;if(!persist())return;toast('Backup restored.')}catch(e){console.error(e);toast('That backup file could not be restored.')}};rd.readAsText(f)});
 
 
