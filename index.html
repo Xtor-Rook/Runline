@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#111214" />
-<title>Runline v1.1 — Agility Trial Planner</title>
+<title>Runline v1.2 — Agility Trial Planner</title>
 <meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
 <meta name="application-name" content="Runline" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -94,6 +94,11 @@ body.mapExpandedOpen{overflow:hidden}
 .collapseCardBody{padding-top:12px}
 .panelActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:700px){.collapseCard{padding:13px}.collapseSection>summary{min-height:32px}.panelActions{justify-content:flex-start}}
+.cloudStatus{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cloudDot{width:9px;height:9px;border-radius:50%;background:var(--muted);display:inline-block}
+.cloudDot.on{background:var(--accent)}
+.cloudDot.syncing{background:var(--actual)}
+.cloudEmail{max-width:390px}
 </style>
 </head>
 <body>
@@ -297,6 +302,20 @@ body.mapExpandedOpen{overflow:hidden}
     <div class="grid">
       <div class="card span6"><h2>Dogs</h2><div class="formgrid"><div><label>Name</label><input id="dogName" placeholder="Muska" /></div><div><label>Height / division</label><input id="dogHeight" placeholder="8 in / 20 cm" /></div><div class="full"><label>Notes</label><input id="dogNotes" placeholder="Papillon · AAC / UKI" /></div></div><button id="addDogBtn" class="btn" style="margin-top:12px">Add dog</button><div id="dogList" class="list" style="margin-top:14px"></div></div>
       <div class="card span6"><h2>Trials</h2><div class="formgrid"><div class="full"><label>Trial name</label><input id="trialName" placeholder="Club + trial" /></div><div><label>Date</label><input id="trialDate" type="date" /></div><div><label>Organization</label><select id="trialOrg"><option>AAC</option><option>UKI</option><option>CKC</option><option>Other</option></select></div><div class="full"><label>Venue</label><input id="trialVenue" placeholder="Venue / city" /></div></div><button id="addTrialBtn" class="btn" style="margin-top:12px">Create trial</button><div id="setupTrialList" class="list" style="margin-top:14px"></div></div>
+      <div class="card span12" id="cloudCard">
+        <div class="row between">
+          <div><h3>Runline Cloud</h3><div class="muted small">Private sync between your iPhone, iPad, and other Runline devices.</div></div>
+          <div class="cloudStatus"><span id="cloudDot" class="cloudDot"></span><span id="cloudBadge" class="badge">Local only</span></div>
+        </div>
+        <div id="cloudSignedOut" style="margin-top:12px">
+          <div class="row"><input id="cloudEmail" class="cloudEmail" type="email" autocomplete="email" placeholder="Your email address" /><button id="cloudSignInBtn" class="btn">Email sign-in link</button></div>
+          <div class="footerNote">The first time, Supabase may require the Runline GitHub Pages address to be added to Authentication → URL Configuration. After that, the emailed link signs this device into your private Runline library.</div>
+        </div>
+        <div id="cloudSignedIn" class="hidden" style="margin-top:12px">
+          <div class="row"><button id="cloudSyncBtn" class="btn">Sync now</button><button id="cloudSignOutBtn" class="btn secondary">Sign out</button></div>
+          <div id="cloudStatusText" class="footerNote">Signed in. Runline stays offline-first and syncs when a connection is available.</div>
+        </div>
+      </div>
       <div class="card span12" id="installCard">
         <div class="row between"><div><h3>Install Runline</h3><div id="installStatus" class="muted small">Runline can be installed on your Home Screen once this folder is hosted over HTTPS.</div></div><span id="installBadge" class="badge">PWA</span></div>
         <div class="row" style="margin-top:12px"><button id="installBtn" class="btn">Install Runline</button></div>
@@ -308,7 +327,10 @@ body.mapExpandedOpen{overflow:hidden}
 </div>
 <div id="toast" class="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js"></script>
 <script>
+const SUPABASE_URL='https://ubljegtzykqyajetfdas.supabase.co';
+const SUPABASE_KEY='sb_publishable_FVMaFsO4Am_UjPUB3PrvxQ_F7A0g41v';
 const KEY='runline-v5';
 const PREV_KEY='runline-v4';
 const OLD_KEY='runline-v3';
@@ -367,6 +389,12 @@ let videoNotes=[];
 let videoMeta=null;
 let pendingVideoFile=null;
 let currentVideoObjectUrl=null;
+let cloudClient=null;
+let cloudUser=null;
+let cloudSyncTimer=null;
+let cloudSyncing=false;
+let suppressCloudSync=false;
+const CLOUD_DELETE_KEY='runline-cloud-deletes-v1';
 const $=id=>document.getElementById(id);
 
 function load(){
@@ -381,6 +409,7 @@ function persist(){
   try{
     localStorage.setItem(KEY,JSON.stringify(state));
     renderAll();
+    if(!suppressCloudSync) queueCloudSync();
     return true;
   }catch(e){
     console.error('Runline persistence failed',e);
@@ -475,7 +504,7 @@ document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>swit
 
 function renderAll(){renderDogs();renderTrials();renderSelectors();renderStats();renderHistory();renderMarkerList();renderObstacleList();renderPatternControls();renderPatternInsights();refreshVideoObstacleSelect();renderVideoNotes();renderRunTimeline()}
 function renderDogs(){const el=$('dogList');if(!state.dogs.length){el.innerHTML='<div class="empty">Add your first agility dog.</div>';return}el.innerHTML=state.dogs.map(d=>`<div class="item row between"><div><div class="strong">${esc(d.name)}</div><div class="small muted">${esc([d.height,d.notes].filter(Boolean).join(' · '))}</div></div><button class="btn danger mini" onclick="deleteDog('${d.id}')">Delete</button></div>`).join('')}
-function deleteDog(id){if(!confirm('Delete this dog profile? Existing runs will remain.'))return;state.dogs=state.dogs.filter(x=>x.id!==id);persist()}
+function deleteDog(id){if(!confirm('Delete this dog profile? Existing runs will remain.'))return;state.dogs=state.dogs.filter(x=>x.id!==id);queueCloudDelete('dog',id);persist()}
 window.deleteDog=deleteDog;
 function renderTrials(){const recent=[...state.trials].sort((a,b)=>(b.date||'').localeCompare(a.date||''));const html=recent.length?recent.map(t=>{const count=state.runs.filter(r=>r.trialId===t.id).length;return`<div class="item row between"><div><div class="strong">${esc(t.name)}</div><div class="small muted">${esc(t.org)} · ${fmtDate(t.date)}${t.venue?' · '+esc(t.venue):''}</div></div><div class="row"><span class="badge">${count} run${count===1?'':'s'}</span><button class="btn secondary mini" onclick="planTrial('${t.id}')">Open</button><button class="btn danger mini" onclick="deleteTrial('${t.id}')">Delete</button></div></div>`}).join(''):'<div class="empty">No trials yet. Create one and add a course.</div>';$('trialList').innerHTML=html;$('setupTrialList').innerHTML=html}
 function planTrial(id){
@@ -502,6 +531,7 @@ function deleteTrial(id){
     : `Delete "${trial.name}"?\n\nThis cannot be undone.`;
   if(!confirm(msg))return;
   state.trials=state.trials.filter(t=>t.id!==id);
+  queueCloudDelete('trial',id);
   if($('courseTrial')?.value===id)$('courseTrial').value='';
   persist();
   toast('Trial deleted. Saved runs were kept.');
@@ -531,8 +561,8 @@ async function hydrateHistoryThumbnails(){
 async function editRun(id){const r=state.runs.find(x=>x.id===id);if(!r)return;const savedMap=await mapDataForRun(r);currentRunId=id;$('courseDog').value=r.dogId||'';$('courseTrial').value=r.trialId||'';$('courseClass').value=r.className||'';$('courseRound').value=r.round||'';$('courseJudge').value=r.judge||'';$('runTime').value=r.time??'';$('runFaults').value=r.faults??'';$('runResult').value=r.result||'';$('runPlacement').value=r.placement||'';$('runSpeed').value=r.speed??'';$('runPoints').value=r.points??'';$('worked').value=r.worked||'';$('happened').value=r.happened||'';$('trainNext').value=r.trainNext||'';strokes=structuredClone(r.strokes||[]);markers=structuredClone(r.markers||[]);obstacles=structuredClone(r.obstacles||[]);videoNotes=structuredClone(r.videoNotes||[]);videoMeta=r.video?structuredClone(r.video):null;pendingVideoFile=null;normalizeAnnotations();actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;loadBackground(savedMap);setPhase('plan');renderMarkerList();renderObstacleList();refreshVideoObstacleSelect();renderVideoNotes();loadRunVideo(r.id,r.video||null);switchView('planner')}
 window.editRun=editRun;
 
-$('addDogBtn').addEventListener('click',()=>{const name=$('dogName').value.trim();if(!name)return toast('Add a dog name first.');state.dogs.push({id:uid(),name,height:$('dogHeight').value.trim(),notes:$('dogNotes').value.trim()});$('dogName').value=$('dogHeight').value=$('dogNotes').value='';persist();toast('Dog added.')});
-$('addTrialBtn').addEventListener('click',()=>{const name=$('trialName').value.trim();if(!name)return toast('Give the trial a name.');state.trials.push({id:uid(),name,date:$('trialDate').value,org:$('trialOrg').value,venue:$('trialVenue').value.trim()});$('trialName').value=$('trialVenue').value='';$('trialDate').value='';persist();toast('Trial created.')});
+$('addDogBtn').addEventListener('click',()=>{const name=$('dogName').value.trim();if(!name)return toast('Add a dog name first.');state.dogs.push({id:uid(),name,height:$('dogHeight').value.trim(),notes:$('dogNotes').value.trim(),updatedAt:new Date().toISOString()});$('dogName').value=$('dogHeight').value=$('dogNotes').value='';persist();toast('Dog added.')});
+$('addTrialBtn').addEventListener('click',()=>{const name=$('trialName').value.trim();if(!name)return toast('Give the trial a name.');state.trials.push({id:uid(),name,date:$('trialDate').value,org:$('trialOrg').value,venue:$('trialVenue').value.trim(),updatedAt:new Date().toISOString()});$('trialName').value=$('trialVenue').value='';$('trialDate').value='';persist();toast('Trial created.')});
 $('newTrialBtn').addEventListener('click',()=>switchView('setup'));
 $('historySearch').addEventListener('input',renderHistory);
 
@@ -713,6 +743,165 @@ $('shareBackupSetupBtn').addEventListener('click',shareBackup);
 $('importBtn').addEventListener('click',()=>{const f=$('importFile').files?.[0];if(!f)return toast('Choose a backup file.');const rd=new FileReader();rd.onload=async()=>{try{const data=JSON.parse(rd.result);if(!data.dogs||!data.trials||!data.runs)throw Error();for(const run of data.runs){if(run.mapData){await saveMapData(run.id,run.mapData);run.hasMap=true;run.mapData=null}}state=data;if(!persist())return;toast('Backup restored.')}catch(e){console.error(e);toast('That backup file could not be restored.')}};rd.readAsText(f)});
 
 
+// Runline Cloud — Supabase-backed, offline-first sync.
+function cloudTable(type){return type==='dog'?'runline_dogs':type==='trial'?'runline_trials':'runline_runs'}
+function isoTime(v){const t=Date.parse(v||'');return Number.isFinite(t)?t:0}
+function setCloudUI(mode,msg=''){
+  const dot=$('cloudDot'),badge=$('cloudBadge'),out=$('cloudSignedOut'),inn=$('cloudSignedIn'),status=$('cloudStatusText');
+  if(!dot||!badge)return;
+  dot.classList.toggle('on',mode==='on');dot.classList.toggle('syncing',mode==='syncing');
+  badge.textContent=mode==='syncing'?'Syncing…':mode==='on'?'Cloud on':'Local only';
+  out?.classList.toggle('hidden',!!cloudUser);inn?.classList.toggle('hidden',!cloudUser);
+  if(status&&msg)status.textContent=msg;
+}
+function queueCloudSync(){
+  if(suppressCloudSync||!cloudUser||!navigator.onLine)return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer=setTimeout(()=>syncCloud(false),900);
+}
+function getCloudDeletes(){try{return JSON.parse(localStorage.getItem(CLOUD_DELETE_KEY)||'[]')}catch{return[]}}
+function queueCloudDelete(type,id){
+  const q=getCloudDeletes();
+  if(!q.some(x=>x.type===type&&x.id===id))q.push({type,id});
+  localStorage.setItem(CLOUD_DELETE_KEY,JSON.stringify(q));
+}
+async function flushCloudDeletes(){
+  if(!cloudClient||!cloudUser)return;
+  const q=getCloudDeletes(),keep=[];
+  for(const item of q){
+    try{
+      const table=cloudTable(item.type);
+      const {error}=await cloudClient.from(table).delete().eq('id',item.id);
+      if(error)throw error;
+      if(item.type==='run'){
+        const path=`${cloudUser.id}/${item.id}/course-map`;
+        await cloudClient.storage.from('course-maps').remove([path]);
+      }
+    }catch(e){console.warn('Cloud delete deferred',e);keep.push(item)}
+  }
+  localStorage.setItem(CLOUD_DELETE_KEY,JSON.stringify(keep));
+}
+function mergeCloudRows(localArr,rows){
+  const byId=new Map(localArr.map(x=>[x.id,x]));
+  let changed=false;
+  for(const row of rows||[]){
+    const remote={...(row.data||{}),id:row.id,updatedAt:row.updated_at};
+    const local=byId.get(row.id);
+    if(!local||isoTime(row.updated_at)>isoTime(local.updatedAt||local.createdAt)){
+      if(local){Object.assign(local,remote)}else localArr.push(remote);
+      changed=true;
+    }
+  }
+  return changed;
+}
+async function upsertLocalRows(type,localArr,remoteRows){
+  const table=cloudTable(type),remote=new Map((remoteRows||[]).map(r=>[r.id,r]));
+  const payload=[];
+  for(const item of localArr){
+    const rr=remote.get(item.id);
+    const localStamp=item.updatedAt||item.createdAt||'';
+    if(!rr||isoTime(localStamp)>isoTime(rr.updated_at)){
+      const stamp=localStamp||new Date().toISOString();
+      item.updatedAt=stamp;
+      const data=structuredClone(item);
+      delete data.mapData;
+      payload.push({id:item.id,user_id:cloudUser.id,data,updated_at:stamp});
+    }
+  }
+  if(payload.length){
+    const {error}=await cloudClient.from(table).upsert(payload,{onConflict:'id'});
+    if(error)throw error;
+  }
+}
+function dataUrlToBlob(dataUrl){return fetch(dataUrl).then(r=>r.blob())}
+function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const rd=new FileReader();rd.onload=()=>resolve(rd.result);rd.onerror=()=>reject(rd.error);rd.readAsDataURL(blob)})}
+async function syncRunMaps(remoteRows){
+  const remote=new Map((remoteRows||[]).map(r=>[r.id,r]));
+  for(const run of state.runs){
+    const rr=remote.get(run.id);
+    const localMap=await getMapData(run.id).catch(()=>null);
+    const remotePath=rr?.map_path||null;
+    const localNewer=!rr||isoTime(run.updatedAt||run.createdAt)>=isoTime(rr.updated_at);
+    if(localMap&&(!remotePath||localNewer)){
+      try{
+        const blob=await dataUrlToBlob(localMap);
+        const path=`${cloudUser.id}/${run.id}/course-map`;
+        const {error:uploadError}=await cloudClient.storage.from('course-maps').upload(path,blob,{upsert:true,contentType:blob.type||'image/jpeg'});
+        if(uploadError)throw uploadError;
+        const {error:updateError}=await cloudClient.from('runline_runs').update({map_path:path}).eq('id',run.id);
+        if(updateError)throw updateError;
+      }catch(e){console.warn('Map upload deferred',e)}
+    }else if(!localMap&&remotePath){
+      try{
+        const {data,error}=await cloudClient.storage.from('course-maps').download(remotePath);
+        if(error)throw error;
+        const dataUrl=await blobToDataUrl(data);
+        await saveMapData(run.id,dataUrl);
+        run.hasMap=true;
+      }catch(e){console.warn('Map download deferred',e)}
+    }
+  }
+}
+async function syncCloud(showToast=true){
+  if(!cloudClient||!cloudUser||cloudSyncing||!navigator.onLine)return;
+  cloudSyncing=true;setCloudUI('syncing','Syncing your Runline library…');
+  try{
+    await flushCloudDeletes();
+    const [dogs,trials,runs]=await Promise.all([
+      cloudClient.from('runline_dogs').select('*'),
+      cloudClient.from('runline_trials').select('*'),
+      cloudClient.from('runline_runs').select('*')
+    ]);
+    if(dogs.error)throw dogs.error;if(trials.error)throw trials.error;if(runs.error)throw runs.error;
+
+    suppressCloudSync=true;
+    mergeCloudRows(state.dogs,dogs.data);
+    mergeCloudRows(state.trials,trials.data);
+    mergeCloudRows(state.runs,runs.data);
+    suppressCloudSync=false;
+
+    await upsertLocalRows('dog',state.dogs,dogs.data);
+    await upsertLocalRows('trial',state.trials,trials.data);
+    await upsertLocalRows('run',state.runs,runs.data);
+    await syncRunMaps(runs.data);
+
+    suppressCloudSync=true;persist();suppressCloudSync=false;
+    const stamp=new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    setCloudUI('on',`Synced at ${stamp}. Videos stay on this device.`);
+    if(showToast)toast('Runline cloud synced.');
+  }catch(e){
+    console.error('Cloud sync failed',e);
+    setCloudUI('on','Cloud connected; sync will retry when available.');
+    if(showToast)toast('Cloud sync could not finish.');
+  }finally{cloudSyncing=false}
+}
+async function handleCloudSession(session){
+  cloudUser=session?.user||null;
+  if(cloudUser){
+    setCloudUI('on',`Signed in as ${cloudUser.email||'Runline user'}.`);
+    await syncCloud(false);
+  }else setCloudUI('off','Sign in to sync between devices.');
+}
+function initCloud(){
+  if(!window.supabase?.createClient){setCloudUI('off','Cloud library unavailable offline; local Runline still works.');return}
+  cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  cloudClient.auth.getSession().then(({data})=>handleCloudSession(data.session));
+  cloudClient.auth.onAuthStateChange((_event,session)=>setTimeout(()=>handleCloudSession(session),0));
+}
+$('cloudSignInBtn')?.addEventListener('click',async()=>{
+  const email=$('cloudEmail').value.trim();
+  if(!email)return toast('Enter your email address.');
+  if(!cloudClient)return toast('Cloud library is not available right now.');
+  const redirectTo=location.origin+location.pathname;
+  const {error}=await cloudClient.auth.signInWithOtp({email,options:{emailRedirectTo:redirectTo}});
+  if(error){console.error(error);toast(error.message||'Could not send sign-in link.');return}
+  toast('Sign-in link sent. Check your email.');
+});
+$('cloudSignOutBtn')?.addEventListener('click',async()=>{if(cloudClient)await cloudClient.auth.signOut();cloudUser=null;setCloudUI('off','Signed out. Local data remains on this device.');});
+$('cloudSyncBtn')?.addEventListener('click',()=>syncCloud(true));
+window.addEventListener('online',()=>{toast('Back online.');queueCloudSync()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')queueCloudSync()});
+
 // Collapsible planner panels: remember state per device/browser.
 function initCollapsiblePanels(){
   const panels=[...document.querySelectorAll('#planner details[data-collapse-key]')];
@@ -765,9 +954,9 @@ $('installBtn')?.addEventListener('click',async()=>{
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
   window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Service worker registration failed',err)));
 }
-window.addEventListener('online',()=>toast('Back online.'));
 window.addEventListener('offline',()=>toast('Offline mode — Runline still works.'));
 renderInstallState();
+initCloud();
 
 initCollapsiblePanels();normalizeAnnotations();renderAll();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');migrateInlineMaps().catch(e=>console.warn('Map migration failed',e));
 </script>
