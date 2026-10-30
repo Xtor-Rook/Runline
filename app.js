@@ -63,6 +63,16 @@ let cloudUser=null;
 let cloudSyncTimer=null;
 let cloudSyncing=false;
 let suppressCloudSync=false;
+let plannerDirty=false;
+let plannerLocalSaved=false;
+let plannerCloudState='off';
+let ringsideMode=false;
+let mapNavMode=false;
+let mapZoom=1;
+let mapPanX=0;
+let mapPanY=0;
+let mapGesturePointers=new Map();
+let mapGestureStart=null;
 const CLOUD_DELETE_KEY='runline-cloud-deletes-v1';
 const $=id=>document.getElementById(id);
 
@@ -88,6 +98,59 @@ function persist(){
 }
 function uid(){return crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)}
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1600)}
+function updatePlannerStatus(){
+  const local=$('localSaveBadge'),cloud=$('plannerCloudBadge');
+  if(local){
+    local.classList.toggle('dirty',plannerDirty);
+    local.classList.toggle('saved',!plannerDirty&&plannerLocalSaved);
+    local.textContent=plannerDirty?'Unsaved':(plannerLocalSaved?'Saved locally ✓':'Not saved');
+  }
+  if(cloud){
+    cloud.classList.toggle('synced',plannerCloudState==='synced');
+    cloud.classList.toggle('pending',plannerCloudState==='pending'||plannerCloudState==='syncing');
+    cloud.textContent=plannerCloudState==='synced'?'Cloud synced ✓':plannerCloudState==='syncing'?'Syncing…':plannerCloudState==='pending'?'Cloud pending':'Cloud off';
+  }
+}
+function markPlannerDirty(){
+  plannerDirty=true;plannerLocalSaved=false;
+  if(cloudUser)plannerCloudState='pending';
+  updatePlannerStatus();
+}
+function markPlannerSaved(){
+  plannerDirty=false;plannerLocalSaved=true;
+  plannerCloudState=cloudUser?(navigator.onLine?'pending':'pending'):'off';
+  updatePlannerStatus();
+}
+function updateRingsideSummary(){
+  const el=$('ringsideSummary');if(!el)return;
+  const dog=dogName($('courseDog')?.value),trial=trialName($('courseTrial')?.value),cls=$('courseClass')?.value.trim();
+  el.textContent=[dog!=='Unknown dog'?dog:'',trial!=='Unassigned trial'?trial:'',cls].filter(Boolean).join(' · ')||'Current run';
+}
+function updateQuickResultButtons(){
+  const v=$('runResult')?.value||'';
+  document.querySelectorAll('[data-quick-result]').forEach(b=>b.classList.toggle('active',b.dataset.quickResult===v));
+}
+function setRingsideMode(on){
+  ringsideMode=!!on;
+  document.body.classList.toggle('ringside',ringsideMode);
+  const b=$('ringsideBtn');if(b)b.textContent=ringsideMode?'Exit ringside':'Ringside mode';
+  updateRingsideSummary();
+  setTimeout(()=>{drawCanvas();$('mapCard')?.scrollIntoView({block:'start'})},30);
+}
+function showPlannerBottomNav(show){$('plannerBottomNav')?.classList.toggle('hidden',!show)}
+function applyMapTransform(){
+  const c=$('courseCanvas');if(!c)return;
+  c.style.transform=`translate(${mapPanX}px,${mapPanY}px) scale(${mapZoom})`;
+  const z=$('mapZoomLabel');if(z)z.textContent=Math.round(mapZoom*100)+'%';
+  $('mapResetBtn')?.classList.toggle('hidden',mapZoom===1&&Math.abs(mapPanX)<1&&Math.abs(mapPanY)<1);
+}
+function resetMapView(){mapZoom=1;mapPanX=0;mapPanY=0;mapGesturePointers.clear();mapGestureStart=null;applyMapTransform()}
+function setMapNavMode(on){
+  mapNavMode=!!on;
+  $('plannerWrap')?.classList.toggle('navMode',mapNavMode);
+  const b=$('mapNavBtn');if(b)b.textContent=mapNavMode?'✓ Done zooming':'✋ Pan / zoom';
+  if(mapNavMode){drawing=false;currentStroke=null;draggingMarker=false;draggingObstacle=false}
+}
 function fmtDate(d){if(!d)return'';return new Date(d+'T12:00:00').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})}
 function dogName(id){return state.dogs.find(x=>x.id===id)?.name||'Unknown dog'}
 function trialName(id){return state.trials.find(x=>x.id===id)?.name||'Unassigned trial'}
@@ -168,7 +231,7 @@ $('mapExpandBtn').addEventListener('click',()=>setMapExpanded(!mapExpanded));
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&mapExpanded)setMapExpanded(false)});
 window.addEventListener('resize',()=>{if(mapExpanded)setTimeout(drawCanvas,20)});
 
-function switchView(id){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===id));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===id));if(id==='planner')setTimeout(drawCanvas,40)}
+function switchView(id){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===id));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===id));showPlannerBottomNav(id==='planner');if(id==='planner'){updateRingsideSummary();setTimeout(drawCanvas,40)}else if(ringsideMode)setRingsideMode(false)}
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
 
 function renderAll(){renderDogs();renderTrials();renderSelectors();renderStats();renderHistory();renderMarkerList();renderObstacleList();renderPatternControls();renderPatternInsights();refreshVideoObstacleSelect();renderVideoNotes();renderRunTimeline()}
@@ -227,7 +290,7 @@ async function hydrateHistoryThumbnails(){
     if(data){img.src=data;img.style.visibility='visible'}else img.style.visibility='hidden';
   }
 }
-async function editRun(id){const r=state.runs.find(x=>x.id===id);if(!r)return;const savedMap=await mapDataForRun(r);currentRunId=id;$('courseDog').value=r.dogId||'';$('courseTrial').value=r.trialId||'';$('courseClass').value=r.className||'';$('courseRound').value=r.round||'';$('courseJudge').value=r.judge||'';$('runTime').value=r.time??'';$('runFaults').value=r.faults??'';$('runResult').value=r.result||'';$('runPlacement').value=r.placement||'';$('runSpeed').value=r.speed??'';$('runPoints').value=r.points??'';$('worked').value=r.worked||'';$('happened').value=r.happened||'';$('trainNext').value=r.trainNext||'';strokes=structuredClone(r.strokes||[]);markers=structuredClone(r.markers||[]);obstacles=structuredClone(r.obstacles||[]);videoNotes=structuredClone(r.videoNotes||[]);videoMeta=r.video?structuredClone(r.video):null;pendingVideoFile=null;normalizeAnnotations();actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;loadBackground(savedMap);setPhase('plan');renderMarkerList();renderObstacleList();refreshVideoObstacleSelect();renderVideoNotes();loadRunVideo(r.id,r.video||null);switchView('planner')}
+async function editRun(id){const r=state.runs.find(x=>x.id===id);if(!r)return;const savedMap=await mapDataForRun(r);currentRunId=id;$('courseDog').value=r.dogId||'';$('courseTrial').value=r.trialId||'';$('courseClass').value=r.className||'';$('courseRound').value=r.round||'';$('courseJudge').value=r.judge||'';$('runTime').value=r.time??'';$('runFaults').value=r.faults??'';$('runResult').value=r.result||'';$('runPlacement').value=r.placement||'';$('runSpeed').value=r.speed??'';$('runPoints').value=r.points??'';$('worked').value=r.worked||'';$('happened').value=r.happened||'';$('trainNext').value=r.trainNext||'';strokes=structuredClone(r.strokes||[]);markers=structuredClone(r.markers||[]);obstacles=structuredClone(r.obstacles||[]);videoNotes=structuredClone(r.videoNotes||[]);videoMeta=r.video?structuredClone(r.video):null;pendingVideoFile=null;normalizeAnnotations();actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;loadBackground(savedMap);setPhase('plan');renderMarkerList();renderObstacleList();refreshVideoObstacleSelect();renderVideoNotes();loadRunVideo(r.id,r.video||null);plannerDirty=false;plannerLocalSaved=true;plannerCloudState=cloudUser?'synced':'off';updatePlannerStatus();updateQuickResultButtons();resetMapView();switchView('planner')}
 window.editRun=editRun;
 document.addEventListener('click',e=>{
   const delDog=e.target.closest('[data-delete-dog]'); if(delDog){deleteDog(delDog.dataset.deleteDog);return}
@@ -274,7 +337,7 @@ document.addEventListener('click',e=>{const tool=e.target.closest('.tool');if(to
 
 const canvas=$('courseCanvas'),ctx=canvas.getContext('2d');
 function normalizeAnnotations(){strokes=strokes.map(s=>({...s,id:s.id||uid()}));markers=markers.map(m=>({...m,id:m.id||uid(),kind:m.kind||'note',label:m.label||'',layer:m.layer||(m.kind==='issue'?'review':'plan'),obstacleId:m.obstacleId||null}));obstacles=obstacles.map((o,i)=>({...o,id:o.id||uid(),number:Number(o.number)||i+1,type:o.type||'other',note:o.note||''}))}
-function loadBackground(data){bgImage=null;mapDataOriginal=data||null;$('canvasHint').classList.toggle('hidden',!!data);if(!data){canvas.width=1200;canvas.height=850;drawCanvas();return}const img=new Image();img.onload=()=>{bgImage=img;const ratio=img.width/img.height;canvas.width=1200;canvas.height=Math.round(1200/ratio);drawCanvas()};img.src=data}
+function loadBackground(data){bgImage=null;mapDataOriginal=data||null;$('canvasHint').classList.toggle('hidden',!!data);resetMapView();if(!data){canvas.width=1200;canvas.height=850;drawCanvas();return}const img=new Image();img.onload=()=>{bgImage=img;const ratio=img.width/img.height;canvas.width=1200;canvas.height=Math.round(1200/ratio);drawCanvas()};img.src=data}
 function isPlanStroke(s){return s.tool==='planned'}
 function isReviewStroke(s){return s.tool==='actual'}
 function shouldShowLayer(layer){return layer==='plan'?$('showPlanLayer').checked:$('showReviewLayer').checked}
@@ -288,14 +351,25 @@ function drawObstacle(o,selected=false){
 function obstacleNear(p,limit=38){for(let i=obstacles.length-1;i>=0;i--){const o=obstacles[i];if(Math.hypot(p.x-o.x,p.y-o.y)<=limit)return o}return null}
 function nearestObstacle(p,limit=115){let best=null,bestD=Infinity;for(const o of obstacles){const d=Math.hypot(p.x-o.x,p.y-o.y);if(d<bestD&&d<=limit){best=o;bestD=d}}return best}
 function nextObstacleNumber(){return obstacles.length?Math.max(...obstacles.map(o=>Number(o.number)||0))+1:1}
-function addObstacle(type,p){const o={id:uid(),number:nextObstacleNumber(),type:type||'other',note:'',x:p.x,y:p.y};obstacles.push(o);actionHistory.push({type:'obstacle',id:o.id});selectedObstacleId=o.id;renderObstacleList();refreshObstacleSelect();showObstacleEditor(o);drawCanvas();return o}
+function addObstacle(type,p){markPlannerDirty();const o={id:uid(),number:nextObstacleNumber(),type:type||'other',note:'',x:p.x,y:p.y};obstacles.push(o);actionHistory.push({type:'obstacle',id:o.id});selectedObstacleId=o.id;renderObstacleList();refreshObstacleSelect();showObstacleEditor(o);drawCanvas();return o}
 function pointFromEvent(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}}
 function markerNear(p,limit=42){for(let i=markers.length-1;i>=0;i--){const m=markers[i];if(!shouldShowLayer(m.layer||'plan'))continue;if(Math.hypot(p.x-m.x,p.y-m.y)<=limit)return m}return null}
 function strokeNear(p,limit=32){for(let i=strokes.length-1;i>=0;i--){const s=strokes[i];if(isPlanStroke(s)&&!$('showPlanLayer').checked)continue;if(isReviewStroke(s)&&!$('showReviewLayer').checked)continue;for(const q of s.points){if(Math.hypot(p.x-q.x,p.y-q.y)<limit)return s}}return null}
-function addMarker(kind,p,layer){const near=nearestObstacle(p);const target=obstacleById(linkTargetObstacleId);const m={id:uid(),kind,label:'',x:p.x,y:p.y,layer,obstacleId:target?.id||near?.id||null};markers.push(m);actionHistory.push({type:'marker',id:m.id});selectedMarkerId=m.id;renderMarkerList();showMarkerEditor(m);drawCanvas();return m}
+function addMarker(kind,p,layer){markPlannerDirty();const near=nearestObstacle(p);const target=obstacleById(linkTargetObstacleId);const m={id:uid(),kind,label:'',x:p.x,y:p.y,layer,obstacleId:target?.id||near?.id||null};markers.push(m);actionHistory.push({type:'marker',id:m.id});selectedMarkerId=m.id;renderMarkerList();showMarkerEditor(m);drawCanvas();return m}
 
 canvas.addEventListener('pointerdown',e=>{
   if(!bgImage)return;
+  if(mapNavMode){
+    canvas.setPointerCapture(e.pointerId);
+    mapGesturePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(mapGesturePointers.size===1){
+      mapGestureStart={panX:mapPanX,panY:mapPanY,start:[...mapGesturePointers.values()][0]};
+    }else if(mapGesturePointers.size===2){
+      const pts=[...mapGesturePointers.values()];
+      mapGestureStart={panX:mapPanX,panY:mapPanY,zoom:mapZoom,dist:Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y),mid:{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2}};
+    }
+    return;
+  }
   const p=pointFromEvent(e);
   if(activeTool==='obstacle'){addObstacle(activeObstacleType,p);return}
   if(activeTool==='marker'){addMarker(activeMarkerKind,p,'plan');return}
@@ -317,18 +391,36 @@ canvas.addEventListener('pointerdown',e=>{
   canvas.setPointerCapture(e.pointerId);drawing=true;currentStroke={id:uid(),tool:activeTool,points:[p]};
 });
 canvas.addEventListener('pointermove',e=>{
+  if(mapNavMode&&mapGesturePointers.has(e.pointerId)){
+    mapGesturePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const pts=[...mapGesturePointers.values()];
+    if(pts.length===1&&mapGestureStart?.start){
+      mapPanX=mapGestureStart.panX+(pts[0].x-mapGestureStart.start.x);
+      mapPanY=mapGestureStart.panY+(pts[0].y-mapGestureStart.start.y);
+    }else if(pts.length===2&&mapGestureStart?.dist){
+      const dist=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+      const next=Math.max(1,Math.min(4,mapGestureStart.zoom*(dist/mapGestureStart.dist)));
+      const mid={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
+      mapPanX=mapGestureStart.panX+(mid.x-mapGestureStart.mid.x);
+      mapPanY=mapGestureStart.panY+(mid.y-mapGestureStart.mid.y);
+      mapZoom=next;
+    }
+    applyMapTransform();return;
+  }
   const p=pointFromEvent(e);
   if(draggingMarker&&selectedMarkerId){const m=markers.find(x=>x.id===selectedMarkerId);if(m){m.x=Math.max(25,Math.min(canvas.width-25,p.x-dragOffset.x));m.y=Math.max(25,Math.min(canvas.height-25,p.y-dragOffset.y));drawCanvas()}return}
   if(draggingObstacle&&selectedObstacleId){const o=obstacles.find(x=>x.id===selectedObstacleId);if(o){o.x=Math.max(25,Math.min(canvas.width-25,p.x-dragOffset.x));o.y=Math.max(25,Math.min(canvas.height-25,p.y-dragOffset.y));drawCanvas()}return}
   if(!drawing||!currentStroke)return;currentStroke.points.push(p);drawCanvas();drawStroke(currentStroke)
 });
-function finishPointer(){if(draggingMarker){draggingMarker=false;return}if(draggingObstacle){draggingObstacle=false;return}if(drawing&&currentStroke&&currentStroke.points.length){strokes.push(currentStroke);actionHistory.push({type:'stroke',id:currentStroke.id})}drawing=false;currentStroke=null;drawCanvas()}
+function finishPointer(e){if(mapNavMode){if(e?.pointerId!=null)mapGesturePointers.delete(e.pointerId);if(mapGesturePointers.size===1){const p=[...mapGesturePointers.values()][0];mapGestureStart={panX:mapPanX,panY:mapPanY,start:p}}else if(mapGesturePointers.size===0)mapGestureStart=null;return}if(draggingMarker){draggingMarker=false;markPlannerDirty();return}if(draggingObstacle){draggingObstacle=false;markPlannerDirty();return}if(drawing&&currentStroke&&currentStroke.points.length){strokes.push(currentStroke);actionHistory.push({type:'stroke',id:currentStroke.id});markPlannerDirty()}drawing=false;currentStroke=null;drawCanvas()}
 canvas.addEventListener('pointerup',finishPointer);canvas.addEventListener('pointercancel',finishPointer);
 
 $('showObstaclesLayer').addEventListener('change',drawCanvas);$('showPlanLayer').addEventListener('change',drawCanvas);$('showReviewLayer').addEventListener('change',drawCanvas);
 $('undoBtn').addEventListener('click',()=>{const a=actionHistory.pop();if(!a){if(markers.length){markers.pop();renderMarkerList();drawCanvas();return}if(strokes.length){strokes.pop();drawCanvas();return}return}if(a.type==='marker')markers=markers.filter(m=>m.id!==a.id);else if(a.type==='obstacle')deleteObstacleById(a.id);else strokes=strokes.filter(s=>s.id!==a.id);if(selectedMarkerId===a.id){selectedMarkerId=null;hideMarkerEditor()}renderMarkerList();renderObstacleList();drawCanvas()});
 $('clearAnnotationsBtn').addEventListener('click',()=>{if(confirm('Clear all obstacles, planned lines, review lines, and markers?')){strokes=[];markers=[];obstacles=[];actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();renderMarkerList();renderObstacleList();refreshObstacleSelect();drawCanvas()}});
-$('mapUpload').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;const rd=new FileReader();rd.onload=()=>loadBackground(rd.result);rd.readAsDataURL(f)});
+$('mapUpload').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{loadBackground(rd.result);markPlannerDirty()};rd.readAsDataURL(f)});
+$('mapNavBtn')?.addEventListener('click',()=>setMapNavMode(!mapNavMode));
+$('mapResetBtn')?.addEventListener('click',resetMapView);
 
 function renderMarkerList(){const list=$('markerList'),wrap=$('markerListWrap');if(!markers.length){wrap.classList.add('hidden');list.innerHTML='';renderRunTimeline();return}wrap.classList.remove('hidden');list.innerHTML=markers.map(m=>{const t=markerType(m.kind);const o=obstacleById(m.obstacleId);return`<div class="markerItem ${m.id===selectedMarkerId?'selected':''}" data-marker-id="${m.id}"><span class="markerCode">${t.code}</span><div class="markerItemText"><div class="strong small">${esc(t.name)}${o?`<span class="linkedBadge">#${o.number} ${esc(obstacleType(o.type).code)}</span>`:''}</div><div class="muted small">${esc(m.label||'No note')}</div></div><button data-edit-marker="${m.id}">Edit</button></div>`}).join('');renderRunTimeline()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-edit-marker]');if(!b)return;const m=markers.find(x=>x.id===b.dataset.editMarker);if(!m)return;selectedObstacleId=null;hideObstacleEditor();selectedMarkerId=m.id;showMarkerEditor(m);setActiveToolKeepSelection('select');renderMarkerList();renderObstacleList();drawCanvas()});
@@ -349,16 +441,16 @@ $('closeObstacleEditor').addEventListener('click',()=>{selectedObstacleId=null;h
 $('saveObstacleBtn').addEventListener('click',()=>{const o=obstacles.find(x=>x.id===selectedObstacleId);if(!o)return;const n=Math.max(1,Number($('editObstacleNumber').value)||1);o.number=n;o.type=$('editObstacleType').value;o.note=$('editObstacleNote').value.trim();renderObstacleList();renderMarkerList();refreshObstacleSelect();drawCanvas();toast('Obstacle updated.')});
 $('deleteObstacleBtn').addEventListener('click',()=>{if(!selectedObstacleId)return;deleteObstacleById(selectedObstacleId);drawCanvas();toast('Obstacle deleted.')});
 
-function clearForm(keepTrial=false){currentRunId=null;const keep=$('courseTrial').value;['courseClass','courseRound','courseJudge','runTime','runFaults','runPlacement','runSpeed','runPoints','worked','happened','trainNext'].forEach(id=>$(id).value='');$('runResult').value='';$('mapUpload').value='';strokes=[];markers=[];obstacles=[];actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();resetVideoUI();renderMarkerList();renderObstacleList();refreshObstacleSelect();loadBackground(null);if(!keepTrial)$('courseTrial').value='';else $('courseTrial').value=keep;setPhase('plan')}
+function clearForm(keepTrial=false){currentRunId=null;plannerDirty=false;plannerLocalSaved=false;plannerCloudState=cloudUser?'pending':'off';updatePlannerStatus();resetMapView();const keep=$('courseTrial').value;['courseClass','courseRound','courseJudge','runTime','runFaults','runPlacement','runSpeed','runPoints','worked','happened','trainNext'].forEach(id=>$(id).value='');$('runResult').value='';$('mapUpload').value='';strokes=[];markers=[];obstacles=[];actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();resetVideoUI();renderMarkerList();renderObstacleList();refreshObstacleSelect();loadBackground(null);if(!keepTrial)$('courseTrial').value='';else $('courseTrial').value=keep;setPhase('plan')}
 $('clearCourseBtn').addEventListener('click',()=>clearForm(false));
 function currentMapData(){return mapDataOriginal||null}
-$('saveCourseBtn').addEventListener('click',async()=>{if(!$('courseDog').value)return toast('Choose a dog.');if(!$('courseTrial').value)return toast('Choose a trial.');if(!$('courseClass').value.trim())return toast('Add the class name.');const existing=currentRunId?state.runs.find(x=>x.id===currentRunId):null;const runId=currentRunId||uid();const mapData=currentMapData();if(mapData){try{await saveMapData(runId,mapData)}catch(e){console.error(e);return toast('Could not store the course map on this device.')}}if(pendingVideoFile){try{await saveVideoBlob(runId,pendingVideoFile);videoMeta={name:pendingVideoFile.name,type:pendingVideoFile.type,size:pendingVideoFile.size};pendingVideoFile=null;renderVideoMeta()}catch(e){console.error(e);return toast('Could not store the video on this device.')}}const r={id:runId,createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),dogId:$('courseDog').value,trialId:$('courseTrial').value,className:$('courseClass').value.trim(),round:$('courseRound').value.trim(),judge:$('courseJudge').value.trim(),mapData:null,hasMap:!!mapData||!!existing?.hasMap||!!existing?.mapData,strokes:structuredClone(strokes),markers:structuredClone(markers),obstacles:structuredClone(obstacles),video:videoMeta?structuredClone(videoMeta):null,videoNotes:structuredClone(videoNotes),time:$('runTime').value,faults:$('runFaults').value,result:$('runResult').value,placement:$('runPlacement').value.trim(),speed:$('runSpeed').value,points:$('runPoints').value,worked:$('worked').value.trim(),happened:$('happened').value.trim(),trainNext:$('trainNext').value.trim()};const idx=state.runs.findIndex(x=>x.id===r.id);if(idx>=0)state.runs[idx]=r;else state.runs.push(r);currentRunId=r.id;if(!persist())return;toast('Run + course map saved.')} );
-$('duplicateBtn').addEventListener('click',()=>{currentRunId=null;$('courseRound').value='';$('runTime').value=$('runFaults').value=$('runPlacement').value=$('runSpeed').value=$('runPoints').value='';$('runResult').value='';$('worked').value=$('happened').value=$('trainNext').value='';strokes=strokes.filter(s=>s.tool==='planned');markers=markers.filter(m=>m.layer==='plan');videoNotes=[];videoMeta=null;pendingVideoFile=null;clearVideoObjectUrl();$('videoUpload').value='';showVideoBlob(null);$('videoPlaceholder').textContent='Add a run video to create timestamped obstacle notes.';actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();renderVideoNotes();renderMarkerList();renderObstacleList();refreshObstacleSelect();setPhase('plan');drawCanvas();toast('Duplicated — plan kept, review and video cleared.')});
+$('saveCourseBtn').addEventListener('click',async()=>{if(!$('courseDog').value)return toast('Choose a dog.');if(!$('courseTrial').value)return toast('Choose a trial.');if(!$('courseClass').value.trim())return toast('Add the class name.');const existing=currentRunId?state.runs.find(x=>x.id===currentRunId):null;const runId=currentRunId||uid();const mapData=currentMapData();if(mapData){try{await saveMapData(runId,mapData)}catch(e){console.error(e);return toast('Could not store the course map on this device.')}}if(pendingVideoFile){try{await saveVideoBlob(runId,pendingVideoFile);videoMeta={name:pendingVideoFile.name,type:pendingVideoFile.type,size:pendingVideoFile.size};pendingVideoFile=null;renderVideoMeta()}catch(e){console.error(e);return toast('Could not store the video on this device.')}}const r={id:runId,createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),dogId:$('courseDog').value,trialId:$('courseTrial').value,className:$('courseClass').value.trim(),round:$('courseRound').value.trim(),judge:$('courseJudge').value.trim(),mapData:null,hasMap:!!mapData||!!existing?.hasMap||!!existing?.mapData,strokes:structuredClone(strokes),markers:structuredClone(markers),obstacles:structuredClone(obstacles),video:videoMeta?structuredClone(videoMeta):null,videoNotes:structuredClone(videoNotes),time:$('runTime').value,faults:$('runFaults').value,result:$('runResult').value,placement:$('runPlacement').value.trim(),speed:$('runSpeed').value,points:$('runPoints').value,worked:$('worked').value.trim(),happened:$('happened').value.trim(),trainNext:$('trainNext').value.trim()};const idx=state.runs.findIndex(x=>x.id===r.id);if(idx>=0)state.runs[idx]=r;else state.runs.push(r);currentRunId=r.id;if(!persist())return;markPlannerSaved();updateQuickResultButtons();toast('Run + course map saved.')} );
+$('duplicateBtn').addEventListener('click',()=>{currentRunId=null;markPlannerDirty();$('courseRound').value='';$('runTime').value=$('runFaults').value=$('runPlacement').value=$('runSpeed').value=$('runPoints').value='';$('runResult').value='';$('worked').value=$('happened').value=$('trainNext').value='';strokes=strokes.filter(s=>s.tool==='planned');markers=markers.filter(m=>m.layer==='plan');videoNotes=[];videoMeta=null;pendingVideoFile=null;clearVideoObjectUrl();$('videoUpload').value='';showVideoBlob(null);$('videoPlaceholder').textContent='Add a run video to create timestamped obstacle notes.';actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();renderVideoNotes();renderMarkerList();renderObstacleList();refreshObstacleSelect();setPhase('plan');drawCanvas();toast('Duplicated — plan kept, review and video cleared.')});
 
 
-$('videoUpload').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;pendingVideoFile=f;videoMeta={name:f.name,type:f.type,size:f.size};showVideoBlob(f,videoMeta);$('videoPlaceholder').textContent='Add a run video to create timestamped obstacle notes.';toast('Video ready — save the run to attach it.')});
+$('videoUpload').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;markPlannerDirty();pendingVideoFile=f;videoMeta={name:f.name,type:f.type,size:f.size};showVideoBlob(f,videoMeta);$('videoPlaceholder').textContent='Add a run video to create timestamped obstacle notes.';toast('Video ready — save the run to attach it.')});
 $('runVideo').addEventListener('loadedmetadata',()=>renderVideoMeta());
-$('markVideoTimeBtn').addEventListener('click',()=>{const v=$('runVideo');if(!v.src)return toast('Add a run video first.');const obstacleId=$('videoNoteObstacle').value||null;const note=$('videoNoteText').value.trim();if(!obstacleId&&!note)return toast('Choose an obstacle or add a note.');videoNotes.push({id:uid(),time:Number(v.currentTime)||0,obstacleId,note});$('videoNoteText').value='';renderVideoNotes();renderObstacleList();toast(`Marked ${formatVideoTime(v.currentTime)}.`)});
+$('markVideoTimeBtn').addEventListener('click',()=>{const v=$('runVideo');if(!v.src)return toast('Add a run video first.');const obstacleId=$('videoNoteObstacle').value||null;const note=$('videoNoteText').value.trim();if(!obstacleId&&!note)return toast('Choose an obstacle or add a note.');videoNotes.push({id:uid(),time:Number(v.currentTime)||0,obstacleId,note});markPlannerDirty();$('videoNoteText').value='';renderVideoNotes();renderObstacleList();toast(`Marked ${formatVideoTime(v.currentTime)}.`)});
 document.addEventListener('click',e=>{const seek=e.target.closest('[data-seek-note]');if(seek){const n=videoNotes.find(x=>x.id===seek.dataset.seekNote);if(n)seekVideo(n.time);return}const del=e.target.closest('[data-delete-video-note]');if(del){videoNotes=videoNotes.filter(x=>x.id!==del.dataset.deleteVideoNote);renderVideoNotes();renderObstacleList();return}const ob=e.target.closest('[data-seek-obstacle]');if(ob){seekObstacleVideo(ob.dataset.seekObstacle);return}});
 document.addEventListener('click',e=>{const stop=e.target.closest('[data-timeline-obstacle]');if(stop){const id=stop.dataset.timelineObstacle;const note=firstVideoNoteForObstacle(id);$('videoNoteObstacle').value=id;if(note)seekVideo(note.time);else toast('No video timestamp for this obstacle yet.');return}const gen=e.target.closest('[data-timeline-general]');if(gen){const n=videoNotes.find(x=>x.id===gen.dataset.timelineGeneral);if(n)seekVideo(n.time)}});
 $('runVideo').addEventListener('timeupdate',updateTimelinePlayhead);
@@ -422,6 +514,7 @@ $('importBtn').addEventListener('click',()=>{const f=$('importFile').files?.[0];
 function cloudTable(type){return type==='dog'?'runline_dogs':type==='trial'?'runline_trials':'runline_runs'}
 function isoTime(v){const t=Date.parse(v||'');return Number.isFinite(t)?t:0}
 function setCloudUI(mode,msg=''){
+  plannerCloudState=mode==='syncing'?'syncing':mode==='on'?(plannerDirty?'pending':'synced'):'off';updatePlannerStatus();
   const dot=$('cloudDot'),badge=$('cloudBadge'),out=$('cloudSignedOut'),inn=$('cloudSignedIn'),status=$('cloudStatusText');
   if(!dot||!badge)return;
   dot.classList.toggle('on',mode==='on');dot.classList.toggle('syncing',mode==='syncing');
@@ -542,7 +635,7 @@ async function syncCloud(showToast=true){
 
     suppressCloudSync=true;persist();suppressCloudSync=false;
     const stamp=new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-    setCloudUI('on',`Synced at ${stamp}. Videos stay on this device.`);
+    plannerCloudState='synced';updatePlannerStatus();setCloudUI('on',`Synced at ${stamp}. Videos stay on this device.`);
     if(showToast)toast('Runline cloud synced.');
   }catch(e){
     console.error('Cloud sync failed',e);
@@ -679,8 +772,21 @@ $('installBtn')?.addEventListener('click',async()=>{
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
   window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Service worker registration failed',err)));
 }
-window.addEventListener('offline',()=>toast('Offline mode — Runline still works.'));
+$('ringsideBtn')?.addEventListener('click',()=>setRingsideMode(!ringsideMode));
+$('runResult')?.addEventListener('change',()=>{updateQuickResultButtons();markPlannerDirty()});
+document.querySelectorAll('[data-quick-result]').forEach(b=>b.addEventListener('click',()=>{$('runResult').value=b.dataset.quickResult;updateQuickResultButtons();markPlannerDirty();toast(b.dataset.quickResult+' selected.')}));
+['courseDog','courseTrial','courseClass','courseRound','courseJudge','runTime','runFaults','runPlacement','runSpeed','runPoints','worked','happened','trainNext'].forEach(id=>$(id)?.addEventListener('input',()=>{markPlannerDirty();updateRingsideSummary()}));
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-planner-nav]');if(!b)return;
+  const target=b.dataset.plannerNav;
+  if(target==='map'){$('mapCard')?.scrollIntoView({behavior:'smooth',block:'start'});return}
+  if(target==='plan'){$('courseToolsCard')?.scrollIntoView({behavior:'smooth',block:'start'});return}
+  if(target==='video'){const d=$('videoReviewCard');if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'start'})}return}
+  if(target==='result'){const d=$('runResultCard');if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'start'})}return}
+  if(target==='save'){$('saveCourseBtn')?.click()}
+});
+window.addEventListener('offline',()=>{plannerCloudState=cloudUser?'pending':'off';updatePlannerStatus();toast('Offline mode — Runline still works.')});
 renderInstallState();
 initCloud();
 
-initCollapsiblePanels();normalizeAnnotations();renderAll();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');migrateInlineMaps().catch(e=>console.warn('Map migration failed',e));
+initCollapsiblePanels();normalizeAnnotations();renderAll();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');updatePlannerStatus();updateQuickResultButtons();migrateInlineMaps().catch(e=>console.warn('Map migration failed',e));
