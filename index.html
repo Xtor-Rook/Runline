@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#111214" />
-<title>Runline v0.6 — Agility Trial Planner</title>
+<title>Runline v0.7 — Agility Trial Planner</title>
 <meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
 <meta name="application-name" content="Runline" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -66,6 +66,18 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}input,selec
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#1e242a;color:white;border:1px solid #3a444e;padding:10px 14px;border-radius:999px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:20}.toast.show{opacity:1}
 @media(max-width:760px){.span8,.span6,.span4{grid-column:span 12}.app{padding:calc(12px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(88px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}.tabs{top:5px}.brand p{display:none}.plannerWrap{min-height:300px}.markerPalette{grid-template-columns:repeat(3,minmax(0,1fr))}.markerBtn{text-align:center}.markerCode{display:grid;margin:0 auto 5px}.markerBtn span:last-child{display:block;line-height:1.15}}
 @media(max-width:600px){.formgrid{grid-template-columns:1fr}.markerPalette,.obstaclePalette{grid-template-columns:repeat(2,minmax(0,1fr))}.insightGrid{grid-template-columns:1fr}}
+
+/* v0.7 expanded course-map workspace */
+.mapCard{position:relative}
+.mapExpandBtn{white-space:nowrap}
+.mapCard.mapExpanded{position:fixed;inset:0;z-index:9999;margin:0;border-radius:0;padding:12px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+.mapCard.mapExpanded .layerbar{flex:0 0 auto;margin-bottom:10px}
+.mapCard.mapExpanded .plannerWrap{flex:1 1 auto;min-height:0;height:auto;border-radius:12px}
+.mapCard.mapExpanded #courseCanvas{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain}
+body.mapExpandedOpen{overflow:hidden}
+.mapExpandedBadge{display:none}
+.mapCard.mapExpanded .mapExpandedBadge{display:inline-flex}
+@media(max-width:700px){.mapCard.mapExpanded{padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}.mapCard.mapExpanded .layerbar{gap:8px}.mapCard.mapExpanded .layerbar>.row{gap:6px;flex-wrap:wrap}.mapCard.mapExpanded .layerToggle{font-size:11px}}
 </style>
 </head>
 <body>
@@ -173,14 +185,18 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}input,selec
         </div>
       </div>
 
-      <div class="card span8">
+      <div class="card span8 mapCard" id="mapCard">
         <div class="layerbar">
           <div class="row">
             <label class="layerToggle"><input id="showObstaclesLayer" type="checkbox" checked /> Obstacles</label>
             <label class="layerToggle"><input id="showPlanLayer" type="checkbox" checked /> Plan layer</label>
             <label class="layerToggle"><input id="showReviewLayer" type="checkbox" checked /> Review layer</label>
           </div>
-          <div id="activeToolLabel" class="small muted">Drawing planned line</div>
+          <div class="row">
+            <span class="badge mapExpandedBadge">Map workspace</span>
+            <div id="activeToolLabel" class="small muted">Drawing planned line</div>
+            <button class="btn secondary mini mapExpandBtn" id="mapExpandBtn" type="button">⛶ Full screen</button>
+          </div>
         </div>
         <div class="plannerWrap" id="plannerWrap"><canvas id="courseCanvas" width="1200" height="850"></canvas><div id="canvasHint" class="canvasHint">Upload a course-map photo or screenshot to begin.</div></div>
       </div>
@@ -367,6 +383,22 @@ function updateTimelinePlayhead(){
   document.querySelectorAll('[data-timeline-obstacle]').forEach(b=>{const yes=b.dataset.timelineObstacle===activeId;b.classList.toggle('active',yes);if(yes)activeEl=b});
   if(activeEl&&$('runVideo')&&!$('runVideo').paused){const vp=$('timelineViewport'),left=activeEl.offsetLeft-activeEl.parentElement.offsetLeft,right=left+activeEl.offsetWidth;if(left<vp.scrollLeft+12||right>vp.scrollLeft+vp.clientWidth-12)activeEl.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'})}
 }
+
+
+let mapExpanded=false;
+function setMapExpanded(on){
+  mapExpanded=!!on;
+  const card=$('mapCard'), btn=$('mapExpandBtn');
+  if(!card||!btn)return;
+  card.classList.toggle('mapExpanded',mapExpanded);
+  document.body.classList.toggle('mapExpandedOpen',mapExpanded);
+  btn.textContent=mapExpanded?'↙ Back to run':'⛶ Full screen';
+  btn.setAttribute('aria-pressed',String(mapExpanded));
+  setTimeout(drawCanvas,30);
+}
+$('mapExpandBtn').addEventListener('click',()=>setMapExpanded(!mapExpanded));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&mapExpanded)setMapExpanded(false)});
+window.addEventListener('resize',()=>{if(mapExpanded)setTimeout(drawCanvas,20)});
 
 function switchView(id){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===id));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===id));if(id==='planner')setTimeout(drawCanvas,40)}
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
