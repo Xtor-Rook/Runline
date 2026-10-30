@@ -1,4 +1,4 @@
-const CACHE='runline-v1.0-shell-1';
+const CACHE='runline-v1.2-shell-1';
 const APP_SHELL=[
   './',
   './index.html',
@@ -6,7 +6,8 @@ const APP_SHELL=[
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
-  './icons/apple-touch-icon.png'
+  './icons/apple-touch-icon.png',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js'
 ];
 
 self.addEventListener('install',event=>{
@@ -22,7 +23,12 @@ self.addEventListener('activate',event=>{
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET') return;
   const url=new URL(event.request.url);
-  if(url.origin!==self.location.origin) return;
+  if(url.origin!==self.location.origin){
+    if(url.hostname==='cdn.jsdelivr.net'){
+      event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;})));
+    }
+    return;
+  }
 
   if(event.request.mode==='navigate'){
     event.respondWith(
