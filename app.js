@@ -770,7 +770,18 @@ $('installBtn')?.addEventListener('click',async()=>{
   else toast('Browser menu → Install app / Add to Home Screen');
 });
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Service worker registration failed',err)));
+  let swReloading=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(swReloading)return;
+    swReloading=true;
+    location.reload();
+  });
+  window.addEventListener('load',async()=>{
+    try{
+      const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
+      await reg.update();
+    }catch(err){console.warn('Service worker registration failed',err)}
+  });
 }
 $('ringsideBtn')?.addEventListener('click',()=>setRingsideMode(!ringsideMode));
 $('runResult')?.addEventListener('change',()=>{updateQuickResultButtons();markPlannerDirty()});
