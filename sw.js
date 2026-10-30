@@ -1,8 +1,8 @@
-const CACHE='runline-v1.5-shell-1';
+const CACHE='runline-v1.5.1-shell-1';
 const APP_SHELL=[
   './',
   './index.html',
-  './app.js',
+  './app.js?v=1.5.1',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -36,6 +36,16 @@ self.addEventListener('fetch',event=>{
       fetch(event.request)
         .then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put('./index.html',copy));return response;})
         .catch(()=>caches.match('./index.html'))
+    );
+    return;
+  }
+
+  const isFreshAsset=url.pathname.endsWith('/app.js') || url.pathname.endsWith('/manifest.webmanifest');
+  if(isFreshAsset){
+    event.respondWith(
+      fetch(event.request)
+        .then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;})
+        .catch(()=>caches.match(event.request))
     );
     return;
   }
