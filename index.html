@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#111214" />
-<title>Runline v1.2 — Agility Trial Planner</title>
+<title>Runline v1.3 — Agility Trial Planner</title>
 <meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
 <meta name="application-name" content="Runline" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -308,11 +308,16 @@ body.mapExpandedOpen{overflow:hidden}
           <div class="cloudStatus"><span id="cloudDot" class="cloudDot"></span><span id="cloudBadge" class="badge">Local only</span></div>
         </div>
         <div id="cloudSignedOut" style="margin-top:12px">
-          <div class="row"><input id="cloudEmail" class="cloudEmail" type="email" autocomplete="email" placeholder="Your email address" /><button id="cloudSignInBtn" class="btn">Email sign-in link</button></div>
-          <div class="footerNote">The first time, Supabase may require the Runline GitHub Pages address to be added to Authentication → URL Configuration. After that, the emailed link signs this device into your private Runline library.</div>
+          <div class="formgrid">
+            <div class="full"><label>Email</label><input id="cloudEmail" class="cloudEmail" type="email" autocomplete="email" placeholder="Your email address" /></div>
+            <div class="full"><label>Password</label><input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Runline cloud password" /></div>
+          </div>
+          <div class="row" style="margin-top:10px"><button id="cloudPasswordSignInBtn" class="btn">Sign in</button><button id="cloudSignInBtn" class="btn secondary">Send magic link</button></div>
+          <div class="footerNote">Use password sign-in normally. Magic link is for first-time setup or recovery and is subject to Supabase email limits.</div>
         </div>
         <div id="cloudSignedIn" class="hidden" style="margin-top:12px">
           <div class="row"><button id="cloudSyncBtn" class="btn">Sync now</button><button id="cloudSignOutBtn" class="btn secondary">Sign out</button></div>
+          <div style="margin-top:12px"><label>Cloud password</label><div class="row"><input id="cloudNewPassword" type="password" autocomplete="new-password" placeholder="Set or change password (8+ characters)" /><button id="cloudSetPasswordBtn" class="btn secondary">Set password</button></div></div>
           <div id="cloudStatusText" class="footerNote">Signed in. Runline stays offline-first and syncs when a connection is available.</div>
         </div>
       </div>
@@ -878,7 +883,7 @@ async function syncCloud(showToast=true){
 async function handleCloudSession(session){
   cloudUser=session?.user||null;
   if(cloudUser){
-    setCloudUI('on',`Signed in as ${cloudUser.email||'Runline user'}.`);
+    setCloudUI('on',`Signed in as ${cloudUser.email||'Runline user'}. Set a cloud password below for easy sign-in on other devices.`);
     await syncCloud(false);
   }else setCloudUI('off','Sign in to sync between devices.');
 }
@@ -888,14 +893,43 @@ function initCloud(){
   cloudClient.auth.getSession().then(({data})=>handleCloudSession(data.session));
   cloudClient.auth.onAuthStateChange((_event,session)=>setTimeout(()=>handleCloudSession(session),0));
 }
+$('cloudPasswordSignInBtn')?.addEventListener('click',async()=>{
+  const email=$('cloudEmail').value.trim(),password=$('cloudPassword').value;
+  if(!email||!password)return toast('Enter your email and password.');
+  if(!cloudClient)return toast('Cloud library is not available right now.');
+  const {error}=await cloudClient.auth.signInWithPassword({email,password});
+  if(error){console.error(error);toast(error.message||'Could not sign in.');return}
+  $('cloudPassword').value='';
+  toast('Signed in to Runline Cloud.');
+});
+$('cloudSetPasswordBtn')?.addEventListener('click',async()=>{
+  const password=$('cloudNewPassword').value;
+  if(!cloudUser)return toast('Sign in first.');
+  if(!password||password.length<8)return toast('Use at least 8 characters.');
+  const {error}=await cloudClient.auth.updateUser({password});
+  if(error){console.error(error);toast(error.message||'Could not set password.');return}
+  $('cloudNewPassword').value='';
+  toast('Cloud password set.');
+});
 $('cloudSignInBtn')?.addEventListener('click',async()=>{
   const email=$('cloudEmail').value.trim();
   if(!email)return toast('Enter your email address.');
   if(!cloudClient)return toast('Cloud library is not available right now.');
+  const btn=$('cloudSignInBtn');
+  btn.disabled=true;
   const redirectTo=location.origin+location.pathname;
   const {error}=await cloudClient.auth.signInWithOtp({email,options:{emailRedirectTo:redirectTo}});
-  if(error){console.error(error);toast(error.message||'Could not send sign-in link.');return}
+  if(error){
+    console.error(error);
+    btn.disabled=false;
+    if((error.message||'').toLowerCase().includes('rate')) return toast('Email limit reached — use password sign-in or try later.');
+    toast(error.message||'Could not send sign-in link.');
+    return;
+  }
   toast('Sign-in link sent. Check your email.');
+  let left=60;
+  btn.textContent='Link sent · 60s';
+  const timer=setInterval(()=>{left--;if(left<=0){clearInterval(timer);btn.disabled=false;btn.textContent='Send magic link'}else btn.textContent=`Link sent · ${left}s`;},1000);
 });
 $('cloudSignOutBtn')?.addEventListener('click',async()=>{if(cloudClient)await cloudClient.auth.signOut();cloudUser=null;setCloudUI('off','Signed out. Local data remains on this device.');});
 $('cloudSyncBtn')?.addEventListener('click',()=>syncCloud(true));
