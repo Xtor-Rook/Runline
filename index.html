@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#111214" />
-<title>Runline v0.7 — Agility Trial Planner</title>
+<title>Runline v0.8 — Agility Trial Planner</title>
 <meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
 <meta name="application-name" content="Runline" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -67,7 +67,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}input,selec
 @media(max-width:760px){.span8,.span6,.span4{grid-column:span 12}.app{padding:calc(12px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(88px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}.tabs{top:5px}.brand p{display:none}.plannerWrap{min-height:300px}.markerPalette{grid-template-columns:repeat(3,minmax(0,1fr))}.markerBtn{text-align:center}.markerCode{display:grid;margin:0 auto 5px}.markerBtn span:last-child{display:block;line-height:1.15}}
 @media(max-width:600px){.formgrid{grid-template-columns:1fr}.markerPalette,.obstaclePalette{grid-template-columns:repeat(2,minmax(0,1fr))}.insightGrid{grid-template-columns:1fr}}
 
-/* v0.7 expanded course-map workspace */
+/* v0.8 course-map workspace + collapsible planner */
 .mapCard{position:relative}
 .mapExpandBtn{white-space:nowrap}
 .mapCard.mapExpanded{position:fixed;inset:0;z-index:9999;margin:0;border-radius:0;padding:12px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
@@ -78,6 +78,22 @@ body.mapExpandedOpen{overflow:hidden}
 .mapExpandedBadge{display:none}
 .mapCard.mapExpanded .mapExpandedBadge{display:inline-flex}
 @media(max-width:700px){.mapCard.mapExpanded{padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}.mapCard.mapExpanded .layerbar{gap:8px}.mapCard.mapExpanded .layerbar>.row{gap:6px;flex-wrap:wrap}.mapCard.mapExpanded .layerToggle{font-size:11px}}
+
+/* v0.8 collapsible planner panels */
+.collapseSection{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.collapseSection:first-child{margin-top:0}
+.collapseSection>summary,.collapseCard>summary{cursor:pointer;list-style:none;user-select:none;-webkit-user-select:none}
+.collapseSection>summary::-webkit-details-marker,.collapseCard>summary::-webkit-details-marker{display:none}
+.collapseSection>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700;font-size:14px}
+.collapseSection>summary::after,.collapseCard>summary::after{content:'›';font-size:22px;line-height:1;color:var(--muted);transition:transform .16s ease;flex:0 0 auto}
+.collapseSection[open]>summary::after,.collapseCard[open]>summary::after{transform:rotate(90deg)}
+.collapseBody{padding-top:10px}
+.collapseCard{padding:16px}
+.collapseCard>summary{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.collapseCard>summary h3{margin:0}
+.collapseCardBody{padding-top:12px}
+.panelActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:700px){.collapseCard{padding:13px}.collapseSection>summary{min-height:32px}.panelActions{justify-content:flex-start}}
 </style>
 </head>
 <body>
@@ -106,18 +122,22 @@ body.mapExpandedOpen{overflow:hidden}
 
   <section id="planner" class="view">
     <div class="grid">
-      <div class="card span12"><div class="row between"><div><h2>Course planner</h2><div class="muted small">Plan the handling, then review the run on the same map.</div></div><button class="btn secondary" id="clearCourseBtn">New course</button></div></div>
+      <div class="card span12"><div class="row between"><div><h2>Course planner</h2><div class="muted small">Plan the handling, then review the run on the same map.</div></div><div class="panelActions"><button class="btn secondary mini" id="togglePanelsBtn">Collapse panels</button><button class="btn secondary" id="clearCourseBtn">New course</button></div></div></div>
 
       <div class="card span4">
-        <h3>Course details</h3>
-        <div class="formgrid">
-          <div class="full"><label>Dog</label><select id="courseDog"></select></div>
-          <div class="full"><label>Trial</label><select id="courseTrial"></select></div>
-          <div><label>Class</label><input id="courseClass" placeholder="Masters Jumpers" /></div>
-          <div><label>Round</label><input id="courseRound" placeholder="1" /></div>
-          <div class="full"><label>Judge</label><input id="courseJudge" placeholder="Judge name" /></div>
-          <div class="full"><label>Course map</label><input id="mapUpload" type="file" accept="image/*" /></div>
-        </div>
+        <details class="collapseSection" data-collapse-key="course-details" open>
+          <summary>Course details</summary>
+          <div class="collapseBody">
+            <div class="formgrid">
+              <div class="full"><label>Dog</label><select id="courseDog"></select></div>
+              <div class="full"><label>Trial</label><select id="courseTrial"></select></div>
+              <div><label>Class</label><input id="courseClass" placeholder="Masters Jumpers" /></div>
+              <div><label>Round</label><input id="courseRound" placeholder="1" /></div>
+              <div class="full"><label>Judge</label><input id="courseJudge" placeholder="Judge name" /></div>
+              <div class="full"><label>Course map</label><input id="mapUpload" type="file" accept="image/*" /></div>
+            </div>
+          </div>
+        </details>
 
         <div class="phaseTabs">
           <button class="phase active" data-phase="plan">Planning</button>
@@ -131,12 +151,20 @@ body.mapExpandedOpen{overflow:hidden}
             <button class="tool" data-tool="select">Select / edit</button>
             <button class="tool" data-tool="erase">Eraser</button>
           </div>
-          <h4 style="margin-top:14px">Obstacles</h4>
-          <div id="obstaclePalette" class="obstaclePalette"></div>
-          <div class="footerNote">Pick an obstacle type and tap each obstacle on the map. Numbers advance automatically. Tap an existing obstacle with <strong>Select / edit</strong> to correct it.</div>
-          <h4 style="margin-top:14px">Handling cues</h4>
-          <div id="markerPalette" class="markerPalette"></div>
-          <div class="footerNote">Choose a handling cue, then tap the map. Runline links it to the nearest numbered obstacle when possible. Tap <strong>Select / edit</strong> to move, rename, or change the link.</div>
+          <details class="collapseSection" data-collapse-key="obstacles">
+            <summary>Obstacles</summary>
+            <div class="collapseBody">
+              <div id="obstaclePalette" class="obstaclePalette"></div>
+              <div class="footerNote">Pick an obstacle type and tap each obstacle on the map. Numbers advance automatically. Tap an existing obstacle with <strong>Select / edit</strong> to correct it.</div>
+            </div>
+          </details>
+          <details class="collapseSection" data-collapse-key="handling-cues">
+            <summary>Handling cues</summary>
+            <div class="collapseBody">
+              <div id="markerPalette" class="markerPalette"></div>
+              <div class="footerNote">Choose a handling cue, then tap the map. Runline links it to the nearest numbered obstacle when possible. Tap <strong>Select / edit</strong> to move, rename, or change the link.</div>
+            </div>
+          </details>
         </div>
 
         <div id="reviewTools" class="toolPanel hidden">
@@ -175,13 +203,17 @@ body.mapExpandedOpen{overflow:hidden}
         </div>
 
         <div id="obstacleListWrap" class="hidden">
-          <h4 style="margin-top:16px">Course obstacles</h4>
-          <div id="obstacleList" class="markerList"></div>
+          <details class="collapseSection" data-collapse-key="course-obstacles">
+            <summary>Course obstacles</summary>
+            <div class="collapseBody"><div id="obstacleList" class="markerList"></div></div>
+          </details>
         </div>
 
         <div id="markerListWrap" class="hidden">
-          <h4 style="margin-top:16px">Plan markers</h4>
-          <div id="markerList" class="markerList"></div>
+          <details class="collapseSection" data-collapse-key="plan-markers">
+            <summary>Plan markers</summary>
+            <div class="collapseBody"><div id="markerList" class="markerList"></div></div>
+          </details>
         </div>
       </div>
 
@@ -201,9 +233,10 @@ body.mapExpandedOpen{overflow:hidden}
         <div class="plannerWrap" id="plannerWrap"><canvas id="courseCanvas" width="1200" height="850"></canvas><div id="canvasHint" class="canvasHint">Upload a course-map photo or screenshot to begin.</div></div>
       </div>
 
-      <div class="card span12">
-        <div class="row between"><div><h3>Run video review</h3><div class="muted small">Attach the run, mark moments by obstacle, then jump back to them from the course.</div></div><span id="videoSavedBadge" class="badge hidden">Video attached</span></div>
-        <div class="videoGrid" style="margin-top:12px">
+      <details class="card span12 collapseCard" data-collapse-key="video-review">
+        <summary><div><h3>Run video review</h3><div class="muted small">Attach the run, mark moments by obstacle, then jump back to them from the course.</div></div><span id="videoSavedBadge" class="badge hidden">Video attached</span></summary>
+        <div class="collapseCardBody">
+        <div class="videoGrid">
           <div>
             <label>Run video</label>
             <input id="videoUpload" type="file" accept="video/*" />
@@ -226,10 +259,12 @@ body.mapExpandedOpen{overflow:hidden}
         <div class="runTimelineHeader"><div><h4 style="margin:0">Run analysis timeline</h4><div class="muted small" style="margin-top:4px">Obstacle order · planned handling · review issues · video moments</div></div><div class="small muted">Tap a timed obstacle to jump to it.</div></div>
         <div id="timelineViewport" class="timelineViewport"><div id="runTimeline" class="runTimeline"></div></div>
         <div id="timelineGeneral" class="timelineGeneral"></div>
-      </div>
+        </div>
+      </details>
 
-      <div class="card span12">
-        <h3>Run result + review</h3>
+      <details class="card span12 collapseCard" data-collapse-key="run-result">
+        <summary><h3>Run result + review</h3></summary>
+        <div class="collapseCardBody">
         <div class="formgrid">
           <div><label>Time</label><input id="runTime" type="number" step="0.01" placeholder="38.42" /></div>
           <div><label>Faults</label><input id="runFaults" type="number" step="0.5" placeholder="0" /></div>
@@ -242,7 +277,8 @@ body.mapExpandedOpen{overflow:hidden}
           <div class="full"><label>One thing to train next</label><input id="trainNext" placeholder="Tighter tunnel exits after rear cross" /></div>
         </div>
         <div class="row" style="margin-top:12px"><button class="btn" id="saveCourseBtn">Save run</button><button class="btn secondary" id="duplicateBtn">Duplicate for next round</button></div>
-      </div>
+        </div>
+      </details>
     </div>
   </section>
 
@@ -568,6 +604,33 @@ $('exportBtn').addEventListener('click',()=>{const blob=new Blob([JSON.stringify
 $('importBtn').addEventListener('click',()=>{const f=$('importFile').files?.[0];if(!f)return toast('Choose a backup file.');const rd=new FileReader();rd.onload=()=>{try{const data=JSON.parse(rd.result);if(!data.dogs||!data.trials||!data.runs)throw Error();state=data;persist();toast('Backup restored.')}catch{toast('That backup file is not valid.')}};rd.readAsText(f)});
 
 
+// Collapsible planner panels: remember state per device/browser.
+function initCollapsiblePanels(){
+  const panels=[...document.querySelectorAll('#planner details[data-collapse-key]')];
+  panels.forEach(panel=>{
+    const key='runline-panel-'+panel.dataset.collapseKey;
+    const saved=localStorage.getItem(key);
+    if(saved!==null) panel.open=saved==='1';
+    panel.addEventListener('toggle',()=>{
+      localStorage.setItem(key,panel.open?'1':'0');
+      updatePanelToggleLabel();
+    });
+  });
+  updatePanelToggleLabel();
+}
+function updatePanelToggleLabel(){
+  const btn=$('togglePanelsBtn');
+  if(!btn)return;
+  const panels=[...document.querySelectorAll('#planner details[data-collapse-key]')];
+  btn.textContent=panels.some(p=>p.open)?'Collapse panels':'Expand panels';
+}
+$('togglePanelsBtn')?.addEventListener('click',()=>{
+  const panels=[...document.querySelectorAll('#planner details[data-collapse-key]')];
+  const open=!panels.some(p=>p.open);
+  panels.forEach(p=>{p.open=open});
+  updatePanelToggleLabel();
+});
+
 // PWA install + offline shell
 let deferredInstallPrompt=null;
 const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
@@ -597,7 +660,7 @@ window.addEventListener('online',()=>toast('Back online.'));
 window.addEventListener('offline',()=>toast('Offline mode — Runline still works.'));
 renderInstallState();
 
-normalizeAnnotations();renderAll();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');
+initCollapsiblePanels();normalizeAnnotations();renderAll();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');
 </script>
 </body>
 </html>
