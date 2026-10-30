@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#111214" />
-<title>Runline v0.9 — Agility Trial Planner</title>
+<title>Runline v1.0 — Agility Trial Planner</title>
 <meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
 <meta name="application-name" content="Runline" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -299,7 +299,7 @@ body.mapExpandedOpen{overflow:hidden}
         <div class="row" style="margin-top:12px"><button id="installBtn" class="btn">Install Runline</button></div>
         <div id="installHelp" class="footerNote">On iPhone/iPad: open Runline in Safari → Share → Add to Home Screen → Add. Once installed, it opens full-screen and the app shell works offline.</div>
       </div>
-      <div class="card span12"><h3>Backup + restore</h3><div class="row"><input id="importFile" type="file" accept="application/json" style="max-width:430px" /><button id="importBtn" class="btn secondary">Restore backup</button></div><div class="footerNote">Runline stores data in this browser on this device. Export a backup occasionally. Video files are stored separately in the browser and are not included in the JSON backup.</div></div>
+      <div class="card span12"><h3>Backup + restore</h3><div class="row"><input id="importFile" type="file" accept="application/json" style="max-width:430px" /><button id="importBtn" class="btn secondary">Restore backup</button></div><div class="footerNote">Runline stores data in this browser on this device. Export a backup occasionally. Course maps are included in the JSON backup; video files are stored separately and are not included.</div></div>
     </div>
   </section>
 </div>
@@ -313,6 +313,8 @@ const OLDER_KEY='runline-v2';
 const LEGACY_KEY='runline_v1';
 const VIDEO_DB='runline-video-v1';
 const VIDEO_STORE='videos';
+const MAP_DB='runline-map-v1';
+const MAP_STORE='maps';
 const defaultState={dogs:[],trials:[],runs:[]};
 const OBSTACLE_TYPES=[
   {id:'jump',code:'J',name:'Jump'},
@@ -372,7 +374,17 @@ function load(){
     return parsed;
   }catch{return structuredClone(defaultState)}
 }
-function persist(){localStorage.setItem(KEY,JSON.stringify(state));renderAll()}
+function persist(){
+  try{
+    localStorage.setItem(KEY,JSON.stringify(state));
+    renderAll();
+    return true;
+  }catch(e){
+    console.error('Runline persistence failed',e);
+    toast('Could not save — device storage may be full.');
+    return false;
+  }
+}
 function uid(){return crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)}
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1600)}
 function fmtDate(d){if(!d)return'';return new Date(d+'T12:00:00').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})}
@@ -388,6 +400,25 @@ function openVideoDB(){return new Promise((resolve,reject)=>{const req=indexedDB
 async function saveVideoBlob(runId,file){const db=await openVideoDB();return new Promise((resolve,reject)=>{const tx=db.transaction(VIDEO_STORE,'readwrite');tx.objectStore(VIDEO_STORE).put({runId,blob:file,name:file.name,type:file.type,size:file.size,updatedAt:new Date().toISOString()});tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error)}})}
 async function getVideoBlob(runId){const db=await openVideoDB();return new Promise((resolve,reject)=>{const tx=db.transaction(VIDEO_STORE,'readonly');const req=tx.objectStore(VIDEO_STORE).get(runId);req.onsuccess=()=>{db.close();resolve(req.result||null)};req.onerror=()=>{db.close();reject(req.error)}})}
 async function deleteVideoBlob(runId){if(!runId)return;const db=await openVideoDB();return new Promise((resolve,reject)=>{const tx=db.transaction(VIDEO_STORE,'readwrite');tx.objectStore(VIDEO_STORE).delete(runId);tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error)}})}
+function openMapDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(MAP_DB,1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(MAP_STORE))db.createObjectStore(MAP_STORE,{keyPath:'runId'})};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+async function saveMapData(runId,data){if(!runId||!data)return;const db=await openMapDB();return new Promise((resolve,reject)=>{const tx=db.transaction(MAP_STORE,'readwrite');tx.objectStore(MAP_STORE).put({runId,data,updatedAt:new Date().toISOString()});tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error)}})}
+async function getMapData(runId){if(!runId)return null;const db=await openMapDB();return new Promise((resolve,reject)=>{const tx=db.transaction(MAP_STORE,'readonly');const req=tx.objectStore(MAP_STORE).get(runId);req.onsuccess=()=>{db.close();resolve(req.result?.data||null)};req.onerror=()=>{db.close();reject(req.error)}})}
+async function deleteMapData(runId){if(!runId)return;const db=await openMapDB();return new Promise((resolve,reject)=>{const tx=db.transaction(MAP_STORE,'readwrite');tx.objectStore(MAP_STORE).delete(runId);tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error)}})}
+async function mapDataForRun(run){if(!run)return null;try{return (await getMapData(run.id))||run.mapData||null}catch(e){console.warn('Could not read saved course map',e);return run.mapData||null}}
+async function migrateInlineMaps(){
+  let changed=false;
+  for(const run of state.runs){
+    if(run.mapData){
+      try{
+        await saveMapData(run.id,run.mapData);
+        run.hasMap=true;
+        run.mapData=null;
+        changed=true;
+      }catch(e){console.warn('Course map migration deferred',e)}
+    }
+  }
+  if(changed)persist();
+}
 function clearVideoObjectUrl(){if(currentVideoObjectUrl){URL.revokeObjectURL(currentVideoObjectUrl);currentVideoObjectUrl=null}}
 function showVideoBlob(blob,meta={}){clearVideoObjectUrl();const v=$('runVideo');if(!blob){v.pause();v.removeAttribute('src');v.load();v.classList.add('hidden');$('videoPlaceholder').classList.remove('hidden');$('removeVideoBtn').classList.add('hidden');renderVideoMeta();return}currentVideoObjectUrl=URL.createObjectURL(blob);v.src=currentVideoObjectUrl;v.classList.remove('hidden');$('videoPlaceholder').classList.add('hidden');$('removeVideoBtn').classList.remove('hidden');renderVideoMeta(meta)}
 function renderVideoMeta(meta=videoMeta){const box=$('videoMeta');if(!box)return;if(!meta){box.innerHTML='';$('videoSavedBadge').classList.add('hidden');return}const size=meta.size?` · ${(meta.size/1024/1024).toFixed(meta.size>20*1024*1024?0:1)} MB`:'';box.innerHTML=`<span class="badge">${esc(meta.name||'Run video')}${size}</span>${pendingVideoFile?'<span class="small muted">Will attach when you save the run.</span>':'<span class="small muted">Stored on this device.</span>'}`;$('videoSavedBadge').classList.toggle('hidden',!meta)}
@@ -444,7 +475,20 @@ function renderDogs(){const el=$('dogList');if(!state.dogs.length){el.innerHTML=
 function deleteDog(id){if(!confirm('Delete this dog profile? Existing runs will remain.'))return;state.dogs=state.dogs.filter(x=>x.id!==id);persist()}
 window.deleteDog=deleteDog;
 function renderTrials(){const recent=[...state.trials].sort((a,b)=>(b.date||'').localeCompare(a.date||''));const html=recent.length?recent.map(t=>{const count=state.runs.filter(r=>r.trialId===t.id).length;return`<div class="item row between"><div><div class="strong">${esc(t.name)}</div><div class="small muted">${esc(t.org)} · ${fmtDate(t.date)}${t.venue?' · '+esc(t.venue):''}</div></div><div class="row"><span class="badge">${count} run${count===1?'':'s'}</span><button class="btn secondary mini" onclick="planTrial('${t.id}')">Open</button><button class="btn danger mini" onclick="deleteTrial('${t.id}')">Delete</button></div></div>`}).join(''):'<div class="empty">No trials yet. Create one and add a course.</div>';$('trialList').innerHTML=html;$('setupTrialList').innerHTML=html}
-function planTrial(id){$('courseTrial').value=id;switchView('planner')}
+function planTrial(id){
+  const saved=[...state.runs].filter(r=>r.trialId===id).sort((a,b)=>(b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''));
+  if(saved.length===1){editRun(saved[0].id);return}
+  if(saved.length>1){
+    $('historySearch').value=trialName(id);
+    renderHistory();
+    switchView('history');
+    toast(`${saved.length} saved runs for this trial.`);
+    return;
+  }
+  clearForm(false);
+  $('courseTrial').value=id;
+  switchView('planner');
+}
 window.planTrial=planTrial;
 function deleteTrial(id){
   const trial=state.trials.find(t=>t.id===id);
@@ -470,9 +514,18 @@ function renderHistory(){
     return [dogName(r.dogId),trialName(r.trialId),r.className,r.judge,r.worked,r.happened,r.trainNext,obs,cues].join(' ').toLowerCase().includes(q)
   });
   const el=$('historyList');if(!rows.length){el.innerHTML='<div class="empty">No matching runs yet.</div>';return}
-  el.innerHTML=rows.map(r=>`<div class="item row between"><div class="row grow"><img class="courseThumb" src="${r.mapData||''}" alt="course map" onerror="this.style.visibility='hidden'"/><div><div class="row"><span class="strong">${esc(dogName(r.dogId))} — ${esc(r.className||'Course')}</span>${r.result?`<span class="badge ${r.result==='Q'?'q':'nq'}">${esc(r.result)}</span>`:''}</div><div class="small muted">${esc(trialName(r.trialId))}${r.time?' · '+r.time+'s':''}${r.faults!==''?' · '+r.faults+' faults':''}${(r.obstacles||[]).length?' · '+(r.obstacles||[]).length+' obstacles':''}${(r.markers||[]).length?' · '+(r.markers||[]).length+' markers':''}${r.video?' · video':''}${(r.videoNotes||[]).length?' · '+(r.videoNotes||[]).length+' timestamps':''}</div><div class="small" style="margin-top:5px">${esc(r.trainNext||r.happened||'')}</div></div></div><button class="btn secondary mini" onclick="editRun('${r.id}')">Open</button></div>`).join('')
+  el.innerHTML=rows.map(r=>`<div class="item row between"><div class="row grow"><img class="courseThumb" data-run-thumb="${r.id}" src="${r.mapData||''}" alt="course map" onerror="this.style.visibility='hidden'"/><div><div class="row"><span class="strong">${esc(dogName(r.dogId))} — ${esc(r.className||'Course')}</span>${r.result?`<span class="badge ${r.result==='Q'?'q':'nq'}">${esc(r.result)}</span>`:''}</div><div class="small muted">${esc(trialName(r.trialId))}${r.time?' · '+r.time+'s':''}${r.faults!==''?' · '+r.faults+' faults':''}${(r.obstacles||[]).length?' · '+(r.obstacles||[]).length+' obstacles':''}${(r.markers||[]).length?' · '+(r.markers||[]).length+' markers':''}${r.video?' · video':''}${(r.videoNotes||[]).length?' · '+(r.videoNotes||[]).length+' timestamps':''}</div><div class="small" style="margin-top:5px">${esc(r.trainNext||r.happened||'')}</div></div></div><button class="btn secondary mini" onclick="editRun('${r.id}')">Open</button></div>`).join('');hydrateHistoryThumbnails()
 }
-function editRun(id){const r=state.runs.find(x=>x.id===id);if(!r)return;currentRunId=id;$('courseDog').value=r.dogId||'';$('courseTrial').value=r.trialId||'';$('courseClass').value=r.className||'';$('courseRound').value=r.round||'';$('courseJudge').value=r.judge||'';$('runTime').value=r.time??'';$('runFaults').value=r.faults??'';$('runResult').value=r.result||'';$('runPlacement').value=r.placement||'';$('runSpeed').value=r.speed??'';$('runPoints').value=r.points??'';$('worked').value=r.worked||'';$('happened').value=r.happened||'';$('trainNext').value=r.trainNext||'';strokes=structuredClone(r.strokes||[]);markers=structuredClone(r.markers||[]);obstacles=structuredClone(r.obstacles||[]);videoNotes=structuredClone(r.videoNotes||[]);videoMeta=r.video?structuredClone(r.video):null;pendingVideoFile=null;normalizeAnnotations();actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;loadBackground(r.mapData||null);setPhase('plan');renderMarkerList();renderObstacleList();refreshVideoObstacleSelect();renderVideoNotes();loadRunVideo(r.id,r.video||null);switchView('planner')}
+async function hydrateHistoryThumbnails(){
+  const imgs=[...document.querySelectorAll('[data-run-thumb]')];
+  for(const img of imgs){
+    const run=state.runs.find(r=>r.id===img.dataset.runThumb);
+    if(!run)continue;
+    const data=await mapDataForRun(run);
+    if(data){img.src=data;img.style.visibility='visible'}else img.style.visibility='hidden';
+  }
+}
+async function editRun(id){const r=state.runs.find(x=>x.id===id);if(!r)return;const savedMap=await mapDataForRun(r);currentRunId=id;$('courseDog').value=r.dogId||'';$('courseTrial').value=r.trialId||'';$('courseClass').value=r.className||'';$('courseRound').value=r.round||'';$('courseJudge').value=r.judge||'';$('runTime').value=r.time??'';$('runFaults').value=r.faults??'';$('runResult').value=r.result||'';$('runPlacement').value=r.placement||'';$('runSpeed').value=r.speed??'';$('runPoints').value=r.points??'';$('worked').value=r.worked||'';$('happened').value=r.happened||'';$('trainNext').value=r.trainNext||'';strokes=structuredClone(r.strokes||[]);markers=structuredClone(r.markers||[]);obstacles=structuredClone(r.obstacles||[]);videoNotes=structuredClone(r.videoNotes||[]);videoMeta=r.video?structuredClone(r.video):null;pendingVideoFile=null;normalizeAnnotations();actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;loadBackground(savedMap);setPhase('plan');renderMarkerList();renderObstacleList();refreshVideoObstacleSelect();renderVideoNotes();loadRunVideo(r.id,r.video||null);switchView('planner')}
 window.editRun=editRun;
 
 $('addDogBtn').addEventListener('click',()=>{const name=$('dogName').value.trim();if(!name)return toast('Add a dog name first.');state.dogs.push({id:uid(),name,height:$('dogHeight').value.trim(),notes:$('dogNotes').value.trim()});$('dogName').value=$('dogHeight').value=$('dogNotes').value='';persist();toast('Dog added.')});
@@ -591,7 +644,7 @@ $('deleteObstacleBtn').addEventListener('click',()=>{if(!selectedObstacleId)retu
 function clearForm(keepTrial=false){currentRunId=null;const keep=$('courseTrial').value;['courseClass','courseRound','courseJudge','runTime','runFaults','runPlacement','runSpeed','runPoints','worked','happened','trainNext'].forEach(id=>$(id).value='');$('runResult').value='';$('mapUpload').value='';strokes=[];markers=[];obstacles=[];actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();resetVideoUI();renderMarkerList();renderObstacleList();refreshObstacleSelect();loadBackground(null);if(!keepTrial)$('courseTrial').value='';else $('courseTrial').value=keep;setPhase('plan')}
 $('clearCourseBtn').addEventListener('click',()=>clearForm(false));
 function currentMapData(){return mapDataOriginal||null}
-$('saveCourseBtn').addEventListener('click',async()=>{if(!$('courseDog').value)return toast('Choose a dog.');if(!$('courseTrial').value)return toast('Choose a trial.');if(!$('courseClass').value.trim())return toast('Add the class name.');const existing=currentRunId?state.runs.find(x=>x.id===currentRunId):null;const runId=currentRunId||uid();if(pendingVideoFile){try{await saveVideoBlob(runId,pendingVideoFile);videoMeta={name:pendingVideoFile.name,type:pendingVideoFile.type,size:pendingVideoFile.size};pendingVideoFile=null;renderVideoMeta()}catch(e){console.error(e);return toast('Could not store the video on this device.')}}const r={id:runId,createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),dogId:$('courseDog').value,trialId:$('courseTrial').value,className:$('courseClass').value.trim(),round:$('courseRound').value.trim(),judge:$('courseJudge').value.trim(),mapData:currentMapData(),strokes:structuredClone(strokes),markers:structuredClone(markers),obstacles:structuredClone(obstacles),video:videoMeta?structuredClone(videoMeta):null,videoNotes:structuredClone(videoNotes),time:$('runTime').value,faults:$('runFaults').value,result:$('runResult').value,placement:$('runPlacement').value.trim(),speed:$('runSpeed').value,points:$('runPoints').value,worked:$('worked').value.trim(),happened:$('happened').value.trim(),trainNext:$('trainNext').value.trim()};const idx=state.runs.findIndex(x=>x.id===r.id);if(idx>=0)state.runs[idx]=r;else state.runs.push(r);currentRunId=r.id;persist();toast('Run saved.')} );
+$('saveCourseBtn').addEventListener('click',async()=>{if(!$('courseDog').value)return toast('Choose a dog.');if(!$('courseTrial').value)return toast('Choose a trial.');if(!$('courseClass').value.trim())return toast('Add the class name.');const existing=currentRunId?state.runs.find(x=>x.id===currentRunId):null;const runId=currentRunId||uid();const mapData=currentMapData();if(mapData){try{await saveMapData(runId,mapData)}catch(e){console.error(e);return toast('Could not store the course map on this device.')}}if(pendingVideoFile){try{await saveVideoBlob(runId,pendingVideoFile);videoMeta={name:pendingVideoFile.name,type:pendingVideoFile.type,size:pendingVideoFile.size};pendingVideoFile=null;renderVideoMeta()}catch(e){console.error(e);return toast('Could not store the video on this device.')}}const r={id:runId,createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),dogId:$('courseDog').value,trialId:$('courseTrial').value,className:$('courseClass').value.trim(),round:$('courseRound').value.trim(),judge:$('courseJudge').value.trim(),mapData:null,hasMap:!!mapData||!!existing?.hasMap||!!existing?.mapData,strokes:structuredClone(strokes),markers:structuredClone(markers),obstacles:structuredClone(obstacles),video:videoMeta?structuredClone(videoMeta):null,videoNotes:structuredClone(videoNotes),time:$('runTime').value,faults:$('runFaults').value,result:$('runResult').value,placement:$('runPlacement').value.trim(),speed:$('runSpeed').value,points:$('runPoints').value,worked:$('worked').value.trim(),happened:$('happened').value.trim(),trainNext:$('trainNext').value.trim()};const idx=state.runs.findIndex(x=>x.id===r.id);if(idx>=0)state.runs[idx]=r;else state.runs.push(r);currentRunId=r.id;if(!persist())return;toast('Run + course map saved.')} );
 $('duplicateBtn').addEventListener('click',()=>{currentRunId=null;$('courseRound').value='';$('runTime').value=$('runFaults').value=$('runPlacement').value=$('runSpeed').value=$('runPoints').value='';$('runResult').value='';$('worked').value=$('happened').value=$('trainNext').value='';strokes=strokes.filter(s=>s.tool==='planned');markers=markers.filter(m=>m.layer==='plan');videoNotes=[];videoMeta=null;pendingVideoFile=null;clearVideoObjectUrl();$('videoUpload').value='';showVideoBlob(null);$('videoPlaceholder').textContent='Add a run video to create timestamped obstacle notes.';actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();renderVideoNotes();renderMarkerList();renderObstacleList();refreshObstacleSelect();setPhase('plan');drawCanvas();toast('Duplicated — plan kept, review and video cleared.')});
 
 
@@ -614,8 +667,8 @@ function matchingPatternRuns(){const ot=$('patternObstacle')?.value||'',hk=$('pa
 function renderPatternInsights(){const box=$('patternInsights'),list=$('patternRuns');if(!box||!list)return;const runs=matchingPatternRuns();const ot=$('patternObstacle')?.value||'',hk=$('patternHandling')?.value||'';const active=ot||hk;if(!active){box.innerHTML='<div class="empty" style="grid-column:1/-1">Choose an obstacle type, a handling cue, or both to inspect your history.</div>';list.innerHTML='';return}const q=runs.filter(r=>r.result==='Q').length;const issueRuns=runs.filter(r=>{const obs=r.obstacles||[],marks=r.markers||[];const matchedIds=new Set(marks.filter(m=>m.layer==='plan'&&(!hk||m.kind===hk)).map(m=>m.obstacleId).filter(id=>{if(!id)return !ot;const o=obs.find(x=>x.id===id);return !ot||(o&&o.type===ot)}));return marks.some(m=>m.layer==='review'&&m.kind==='issue'&&(matchedIds.size===0||matchedIds.has(m.obstacleId))) }).length;box.innerHTML=`<div class="insight"><div class="value">${runs.length}</div><div class="label">matching runs</div></div><div class="insight"><div class="value">${runs.length?Math.round(q/runs.length*100):0}%</div><div class="label">Q rate</div></div><div class="insight"><div class="value">${issueRuns}</div><div class="label">issues at matched obstacle</div></div>`;list.innerHTML=runs.length?runs.slice(0,8).map(r=>`<div class="item row between"><div><div class="strong">${esc(dogName(r.dogId))} — ${esc(r.className||'Course')}</div><div class="small muted">${esc(trialName(r.trialId))}${r.result?' · '+esc(r.result):''}${r.time?' · '+r.time+'s':''}</div></div><button class="btn secondary mini" onclick="editRun('${r.id}')">Open</button></div>`).join(''):'<div class="empty">No runs match this combination yet.</div>'}
 $('patternObstacle').addEventListener('change',renderPatternInsights);$('patternHandling').addEventListener('change',renderPatternInsights);
 
-$('exportBtn').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='runline-backup.json';a.click();URL.revokeObjectURL(a.href)});
-$('importBtn').addEventListener('click',()=>{const f=$('importFile').files?.[0];if(!f)return toast('Choose a backup file.');const rd=new FileReader();rd.onload=()=>{try{const data=JSON.parse(rd.result);if(!data.dogs||!data.trials||!data.runs)throw Error();state=data;persist();toast('Backup restored.')}catch{toast('That backup file is not valid.')}};rd.readAsText(f)});
+$('exportBtn').addEventListener('click',async()=>{const backup=structuredClone(state);for(const run of backup.runs){const live=state.runs.find(r=>r.id===run.id);run.mapData=await mapDataForRun(live)}const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='runline-backup.json';a.click();URL.revokeObjectURL(a.href);toast('Backup exported with course maps.')});
+$('importBtn').addEventListener('click',()=>{const f=$('importFile').files?.[0];if(!f)return toast('Choose a backup file.');const rd=new FileReader();rd.onload=async()=>{try{const data=JSON.parse(rd.result);if(!data.dogs||!data.trials||!data.runs)throw Error();for(const run of data.runs){if(run.mapData){await saveMapData(run.id,run.mapData);run.hasMap=true;run.mapData=null}}state=data;if(!persist())return;toast('Backup restored.')}catch(e){console.error(e);toast('That backup file could not be restored.')}};rd.readAsText(f)});
 
 
 // Collapsible planner panels: remember state per device/browser.
@@ -674,7 +727,7 @@ window.addEventListener('online',()=>toast('Back online.'));
 window.addEventListener('offline',()=>toast('Offline mode — Runline still works.'));
 renderInstallState();
 
-initCollapsiblePanels();normalizeAnnotations();renderAll();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');
+initCollapsiblePanels();normalizeAnnotations();renderAll();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');migrateInlineMaps().catch(e=>console.warn('Map migration failed',e));
 </script>
 </body>
 </html>
