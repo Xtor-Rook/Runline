@@ -1,4 +1,4 @@
-const CACHE='runline-v0.9-shell-1';
+const CACHE='runline-v1.0-shell-1';
 const APP_SHELL=[
   './',
   './index.html',
