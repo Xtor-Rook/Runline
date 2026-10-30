@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#111214" />
+<title>Runline v0.6 — Agility Trial Planner</title>
+<meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
+<meta name="application-name" content="Runline" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Runline" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+<style>
+:root{
+  --bg:#0d0f11;--panel:#15181c;--panel2:#1b1f24;--line:#2b3138;--text:#f2f4f5;
+  --muted:#9ba4ad;--accent:#9fd6c2;--planned:#49bff2;--actual:#ffae45;--danger:#ef6c6c;
+  --shadow:0 14px 40px rgba(0,0,0,.28);--radius:18px
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100vh}button,input,select,textarea{font:inherit}button{cursor:pointer}
+.app{max-width:1040px;margin:0 auto;padding:18px 16px 90px}.topbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:20px}
+.brand h1{font-size:24px;margin:0}.brand p{margin:3px 0 0;color:var(--muted);font-size:13px}.pill{border:1px solid var(--line);background:var(--panel);color:var(--text);padding:10px 14px;border-radius:999px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;position:sticky;top:8px;z-index:10;background:rgba(13,15,17,.88);backdrop-filter:blur(14px);padding:8px;border:1px solid rgba(255,255,255,.05);border-radius:16px;margin-bottom:18px}
+.tab{border:0;background:transparent;color:var(--muted);padding:10px 8px;border-radius:12px;font-weight:700}.tab.active{background:var(--panel2);color:var(--text)}
+.view{display:none}.view.active{display:block}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.card{background:linear-gradient(180deg,var(--panel),#121519);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.span12{grid-column:span 12}.span8{grid-column:span 8}.span6{grid-column:span 6}.span4{grid-column:span 4}h2,h3,h4{margin:0 0 12px}h2{font-size:20px}h3{font-size:16px}h4{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.muted{color:var(--muted)}.small{font-size:12px}.strong{font-weight:750}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}.grow{flex:1}
+.btn{border:0;border-radius:12px;padding:11px 14px;font-weight:750;background:var(--accent);color:#0b1512}.btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}.btn.danger{background:#2c1d20;color:#ffb3b3;border:1px solid #563239}.btn.mini{padding:8px 10px;font-size:13px;border-radius:10px}
+label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}input,select,textarea{width:100%;background:#0f1215;color:var(--text);border:1px solid var(--line);border-radius:11px;padding:11px 12px;outline:none}input:focus,select:focus,textarea:focus{border-color:#5c7f74}textarea{min-height:86px;resize:vertical}
+.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.formgrid .full{grid-column:1/-1}.stat{padding:14px;border-radius:15px;background:var(--panel2);border:1px solid var(--line)}.stat .value{font-size:24px;font-weight:800}.stat .label{font-size:12px;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:9px}.item{padding:12px;border:1px solid var(--line);background:#111418;border-radius:14px}.badge{font-size:11px;padding:5px 8px;border-radius:999px;background:#20262c;color:#cbd2d7}.badge.q{background:#1c2a21;color:#b6e6c1}.badge.nq{background:#2d2022;color:#f0b0b0}.empty{padding:22px;text-align:center;color:var(--muted);border:1px dashed #343b43;border-radius:14px}.courseThumb{width:66px;height:66px;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:#0c0e10}
+.phaseTabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:14px;padding:5px;background:#0f1215;border:1px solid var(--line);border-radius:14px}.phase{border:0;background:transparent;color:var(--muted);border-radius:10px;padding:10px 8px;font-weight:750}.phase.active{background:var(--panel2);color:var(--text)}
+.toolPanel{margin-top:13px}.toolPanel.hidden{display:none}.toolrow{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.tool{padding:9px 10px;border-radius:11px;border:1px solid var(--line);background:#111418;color:var(--text);font-size:13px}.tool.active{border-color:#80b5a4;background:#18231f;box-shadow:0 0 0 1px rgba(159,214,194,.12) inset}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}.planned{background:var(--planned)}.actual{background:var(--actual)}.error{background:var(--danger)}
+.markerPalette{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}.markerBtn{border:1px solid var(--line);background:#111418;color:var(--text);border-radius:11px;padding:9px 8px;text-align:left;font-size:12px}.markerBtn.active{border-color:#80b5a4;background:#18231f}.markerCode{display:inline-grid;place-items:center;width:27px;height:27px;border-radius:50%;background:#20302b;color:#c8f0e1;font-weight:850;margin-right:7px;font-size:10px}
+.layerbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:9px}.layerToggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:7px 9px;border:1px solid var(--line);border-radius:999px;background:#111418}.layerToggle input{width:auto;margin:0;accent-color:#9fd6c2}
+.plannerWrap{position:relative;background:#090b0d;border:1px solid var(--line);border-radius:16px;overflow:hidden;min-height:350px;display:flex;align-items:center;justify-content:center;touch-action:none}.plannerWrap.selecting{outline:2px solid rgba(159,214,194,.25)}#courseCanvas{width:100%;height:auto;display:block;background:#0b0d10;touch-action:none}.canvasHint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);pointer-events:none;padding:30px;text-align:center}.footerNote{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}.hidden{display:none!important}
+.markerEditor{margin-top:12px;padding:12px;border:1px solid #3a454f;border-radius:13px;background:#101418}.markerList{margin-top:12px;display:flex;flex-direction:column;gap:7px}.markerItem{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#101317;border-radius:11px;padding:8px}.markerItem.selected{border-color:#7db3a2}.markerItem .markerCode{flex:0 0 27px}.markerItemText{min-width:0;flex:1}.markerItemText div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.markerItem button{border:0;background:transparent;color:var(--muted);padding:5px;font-size:12px}
+.obstaclePalette{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}.obstacleBtn{border:1px solid var(--line);background:#111418;color:var(--text);border-radius:11px;padding:9px 8px;text-align:left;font-size:12px}.obstacleBtn.active{border-color:#c6b87c;background:#272317}.obstacleCode{display:inline-grid;place-items:center;min-width:27px;height:27px;padding:0 6px;border-radius:9px;background:#332e1d;color:#f1e3a3;font-weight:850;margin-right:7px;font-size:10px}.linkedBadge{font-size:10px;padding:3px 6px;border-radius:999px;background:#273037;color:#d8e2e7;margin-left:5px}.insightGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.insight{padding:12px;border:1px solid var(--line);border-radius:13px;background:#101317}.insight .value{font-size:20px;font-weight:800}.insight .label{font-size:11px;color:var(--muted);margin-top:3px}
+
+.videoGrid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:16px;align-items:start}
+.runVideo{width:100%;max-height:520px;display:block;background:#080a0c;border:1px solid var(--line);border-radius:14px;margin-top:10px}
+.videoPlaceholder{min-height:220px;border:1px dashed #343b43;border-radius:14px;display:grid;place-items:center;text-align:center;color:var(--muted);padding:24px;margin-top:10px}
+.videoMeta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}.videoMeta .badge{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.timeNote{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;border:1px solid var(--line);background:#101317;border-radius:12px;padding:9px}.timeButton{border:1px solid #40505a;background:#182027;color:#e9f3f6;border-radius:9px;padding:7px 9px;font-weight:800;white-space:nowrap}.timeNoteText{min-width:0}.timeNoteText .strong,.timeNoteText .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.videoLinked{font-size:10px;padding:3px 6px;border-radius:999px;background:#25333b;color:#bfe6f5;margin-left:5px}
+
+.runTimelineHeader{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-top:18px;margin-bottom:9px}
+.timelineViewport{overflow-x:auto;overscroll-behavior-x:contain;padding:5px 2px 12px;scrollbar-width:thin}
+.runTimeline{display:flex;align-items:stretch;gap:0;min-width:max-content;padding:4px 8px 8px}
+.timelineStop{position:relative;width:150px;min-height:142px;padding:36px 9px 10px;border:0;border-top:3px solid #3b454e;background:#101317;color:var(--text);text-align:left;cursor:pointer;transition:.16s}
+.timelineStop:first-child{border-radius:13px 0 0 13px}.timelineStop:last-child{border-radius:0 13px 13px 0}.timelineStop:only-child{border-radius:13px}
+.timelineStop::before{content:'';position:absolute;top:-9px;left:18px;width:14px;height:14px;border-radius:50%;background:#20272d;border:3px solid #85919a;box-shadow:0 0 0 4px #101317}
+.timelineStop.hasTime::before{background:#183744;border-color:#9bd9ef}.timelineStop.hasIssue{background:#171214}.timelineStop.active{background:#18221f;box-shadow:inset 0 0 0 1px #6f9e90}.timelineStop.active::before{background:#9fd6c2;border-color:#e5fff5;box-shadow:0 0 0 5px rgba(159,214,194,.18)}
+.timelineTop{display:flex;align-items:center;justify-content:space-between;gap:5px}.timelineNum{font-size:18px;font-weight:900}.timelineType{font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.timelineTime{font-size:10px;padding:3px 6px;border-radius:999px;background:#172832;color:#bde8f6;white-space:nowrap}
+.timelineCues{display:flex;flex-wrap:wrap;gap:4px;margin-top:9px}.timelineCue{font-size:10px;padding:4px 6px;border-radius:7px;background:#193129;color:#c9eee1;font-weight:850}.timelineIssue{font-size:10px;padding:4px 6px;border-radius:7px;background:#392124;color:#ffc6c6;font-weight:850}.timelineEmpty{font-size:10px;color:#68727a;margin-top:10px}
+.timelineNote{font-size:10px;color:#b8c0c6;line-height:1.3;margin-top:7px;max-width:132px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.timelineGeneral{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}.timelineGeneral .badge{cursor:pointer}
+@media(max-width:760px){.timelineStop{width:128px;min-height:132px}.timelineNote{max-width:110px}}
+@media(max-width:760px){.videoGrid{grid-template-columns:1fr}.runVideo{max-height:420px}}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#1e242a;color:white;border:1px solid #3a444e;padding:10px 14px;border-radius:999px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:20}.toast.show{opacity:1}
+@media(max-width:760px){.span8,.span6,.span4{grid-column:span 12}.app{padding:calc(12px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(88px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}.tabs{top:5px}.brand p{display:none}.plannerWrap{min-height:300px}.markerPalette{grid-template-columns:repeat(3,minmax(0,1fr))}.markerBtn{text-align:center}.markerCode{display:grid;margin:0 auto 5px}.markerBtn span:last-child{display:block;line-height:1.15}}
+@media(max-width:600px){.formgrid{grid-template-columns:1fr}.markerPalette,.obstaclePalette{grid-template-columns:repeat(2,minmax(0,1fr))}.insightGrid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><h1>Runline</h1><p>Agility trial planner + run journal</p></div>
+    <button id="exportBtn" class="pill">Export backup</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-view="today">Today</button>
+    <button class="tab" data-view="planner">Planner</button>
+    <button class="tab" data-view="history">History</button>
+    <button class="tab" data-view="setup">Dogs</button>
+  </div>
+
+  <section id="today" class="view active">
+    <div class="grid">
+      <div class="card span12"><div class="row between"><div><h2>Trial day</h2><div class="muted small">Keep the important stuff one tap away.</div></div><button class="btn" id="newTrialBtn">+ New trial</button></div></div>
+      <div class="card span4"><div class="stat"><div class="value" id="statRuns">0</div><div class="label">Runs logged</div></div></div>
+      <div class="card span4"><div class="stat"><div class="value" id="statQ">0%</div><div class="label">Qualifying rate</div></div></div>
+      <div class="card span4"><div class="stat"><div class="value" id="statClean">0</div><div class="label">Clean runs</div></div></div>
+      <div class="card span12"><h3>Current / recent trials</h3><div id="trialList" class="list"></div></div>
+    </div>
+  </section>
+
+  <section id="planner" class="view">
+    <div class="grid">
+      <div class="card span12"><div class="row between"><div><h2>Course planner</h2><div class="muted small">Plan the handling, then review the run on the same map.</div></div><button class="btn secondary" id="clearCourseBtn">New course</button></div></div>
+
+      <div class="card span4">
+        <h3>Course details</h3>
+        <div class="formgrid">
+          <div class="full"><label>Dog</label><select id="courseDog"></select></div>
+          <div class="full"><label>Trial</label><select id="courseTrial"></select></div>
+          <div><label>Class</label><input id="courseClass" placeholder="Masters Jumpers" /></div>
+          <div><label>Round</label><input id="courseRound" placeholder="1" /></div>
+          <div class="full"><label>Judge</label><input id="courseJudge" placeholder="Judge name" /></div>
+          <div class="full"><label>Course map</label><input id="mapUpload" type="file" accept="image/*" /></div>
+        </div>
+
+        <div class="phaseTabs">
+          <button class="phase active" data-phase="plan">Planning</button>
+          <button class="phase" data-phase="review">Review</button>
+        </div>
+
+        <div id="planTools" class="toolPanel">
+          <h4>Dog line</h4>
+          <div class="toolrow">
+            <button class="tool active" data-tool="planned"><span class="dot planned"></span>Draw planned line</button>
+            <button class="tool" data-tool="select">Select / edit</button>
+            <button class="tool" data-tool="erase">Eraser</button>
+          </div>
+          <h4 style="margin-top:14px">Obstacles</h4>
+          <div id="obstaclePalette" class="obstaclePalette"></div>
+          <div class="footerNote">Pick an obstacle type and tap each obstacle on the map. Numbers advance automatically. Tap an existing obstacle with <strong>Select / edit</strong> to correct it.</div>
+          <h4 style="margin-top:14px">Handling cues</h4>
+          <div id="markerPalette" class="markerPalette"></div>
+          <div class="footerNote">Choose a handling cue, then tap the map. Runline links it to the nearest numbered obstacle when possible. Tap <strong>Select / edit</strong> to move, rename, or change the link.</div>
+        </div>
+
+        <div id="reviewTools" class="toolPanel hidden">
+          <h4>What actually happened</h4>
+          <div class="toolrow">
+            <button class="tool" data-tool="actual"><span class="dot actual"></span>Draw actual line</button>
+            <button class="tool" data-tool="issue"><span class="dot error"></span>Issue marker</button>
+            <button class="tool" data-tool="videojump">▶ Video jump</button>
+            <button class="tool" data-tool="select">Select / edit</button>
+            <button class="tool" data-tool="erase">Eraser</button>
+          </div>
+          <div class="footerNote">Use the orange line after your run. Add issue markers for a refusal, bar, late cue, wide turn, or anything worth remembering.</div>
+        </div>
+
+        <div class="toolrow" style="margin-top:14px">
+          <button class="btn secondary mini" id="undoBtn">Undo</button>
+          <button class="btn secondary mini" id="clearAnnotationsBtn">Clear annotations</button>
+        </div>
+
+        <div id="markerEditor" class="markerEditor hidden">
+          <div class="row between"><h4 style="margin:0">Edit marker</h4><button id="closeMarkerEditor" class="btn secondary mini">Done</button></div>
+          <div style="margin-top:10px"><label>Marker type</label><select id="editMarkerKind"></select></div>
+          <div style="margin-top:10px"><label>Linked obstacle</label><select id="editMarkerObstacle"></select></div>
+          <div style="margin-top:10px"><label>Short note</label><input id="editMarkerLabel" maxlength="42" placeholder="e.g. commit early, tight wrap" /></div>
+          <div class="row" style="margin-top:10px"><button id="saveMarkerBtn" class="btn mini">Save marker</button><button id="deleteMarkerBtn" class="btn danger mini">Delete</button></div>
+        </div>
+
+        <div id="obstacleEditor" class="markerEditor hidden">
+          <div class="row between"><h4 style="margin:0">Edit obstacle</h4><button id="closeObstacleEditor" class="btn secondary mini">Done</button></div>
+          <div class="formgrid" style="margin-top:10px">
+            <div><label>Number</label><input id="editObstacleNumber" type="number" min="1" step="1" /></div>
+            <div><label>Type</label><select id="editObstacleType"></select></div>
+            <div class="full"><label>Short note</label><input id="editObstacleNote" maxlength="42" placeholder="e.g. tunnel under dogwalk" /></div>
+          </div>
+          <div class="footerNote">While this obstacle is selected, the next handling cue you choose will link to it.</div><div class="row" style="margin-top:10px"><button id="saveObstacleBtn" class="btn mini">Save obstacle</button><button id="deleteObstacleBtn" class="btn danger mini">Delete</button></div>
+        </div>
+
+        <div id="obstacleListWrap" class="hidden">
+          <h4 style="margin-top:16px">Course obstacles</h4>
+          <div id="obstacleList" class="markerList"></div>
+        </div>
+
+        <div id="markerListWrap" class="hidden">
+          <h4 style="margin-top:16px">Plan markers</h4>
+          <div id="markerList" class="markerList"></div>
+        </div>
+      </div>
+
+      <div class="card span8">
+        <div class="layerbar">
+          <div class="row">
+            <label class="layerToggle"><input id="showObstaclesLayer" type="checkbox" checked /> Obstacles</label>
+            <label class="layerToggle"><input id="showPlanLayer" type="checkbox" checked /> Plan layer</label>
+            <label class="layerToggle"><input id="showReviewLayer" type="checkbox" checked /> Review layer</label>
+          </div>
+          <div id="activeToolLabel" class="small muted">Drawing planned line</div>
+        </div>
+        <div class="plannerWrap" id="plannerWrap"><canvas id="courseCanvas" width="1200" height="850"></canvas><div id="canvasHint" class="canvasHint">Upload a course-map photo or screenshot to begin.</div></div>
+      </div>
+
+      <div class="card span12">
+        <div class="row between"><div><h3>Run video review</h3><div class="muted small">Attach the run, mark moments by obstacle, then jump back to them from the course.</div></div><span id="videoSavedBadge" class="badge hidden">Video attached</span></div>
+        <div class="videoGrid" style="margin-top:12px">
+          <div>
+            <label>Run video</label>
+            <input id="videoUpload" type="file" accept="video/*" />
+            <div id="videoMeta" class="videoMeta"></div>
+            <video id="runVideo" class="runVideo hidden" controls playsinline preload="metadata"></video>
+            <div id="videoPlaceholder" class="videoPlaceholder">Add a run video to create timestamped obstacle notes.</div>
+            <div class="row" style="margin-top:10px"><button id="removeVideoBtn" class="btn danger mini hidden">Remove video</button></div>
+          </div>
+          <div>
+            <h4>Timestamp notes</h4>
+            <div class="formgrid">
+              <div class="full"><label>Obstacle</label><select id="videoNoteObstacle"><option value="">General run</option></select></div>
+              <div class="full"><label>What happened here?</label><input id="videoNoteText" maxlength="90" placeholder="e.g. late cue, wide turn, great commitment" /></div>
+            </div>
+            <button id="markVideoTimeBtn" class="btn" style="margin-top:10px">Mark current video time</button>
+            <div class="footerNote">Pause the clip at the moment you want, choose the obstacle, and mark it. In Review → <strong>Video jump</strong>, tap that obstacle on the course to return here.</div>
+            <div id="videoNoteList" class="list" style="margin-top:12px"></div>
+          </div>
+        </div>
+        <div class="runTimelineHeader"><div><h4 style="margin:0">Run analysis timeline</h4><div class="muted small" style="margin-top:4px">Obstacle order · planned handling · review issues · video moments</div></div><div class="small muted">Tap a timed obstacle to jump to it.</div></div>
+        <div id="timelineViewport" class="timelineViewport"><div id="runTimeline" class="runTimeline"></div></div>
+        <div id="timelineGeneral" class="timelineGeneral"></div>
+      </div>
+
+      <div class="card span12">
+        <h3>Run result + review</h3>
+        <div class="formgrid">
+          <div><label>Time</label><input id="runTime" type="number" step="0.01" placeholder="38.42" /></div>
+          <div><label>Faults</label><input id="runFaults" type="number" step="0.5" placeholder="0" /></div>
+          <div><label>Result</label><select id="runResult"><option value="">—</option><option>Q</option><option>NQ</option><option>FEO</option><option>Withdrawn</option></select></div>
+          <div><label>Placement</label><input id="runPlacement" placeholder="1st" /></div>
+          <div><label>YPS / m/s</label><input id="runSpeed" type="number" step="0.01" placeholder="4.61" /></div>
+          <div><label>Points / score</label><input id="runPoints" type="number" step="0.1" placeholder="100" /></div>
+          <div class="full"><label>What worked?</label><textarea id="worked" placeholder="Commitment, line, cue timing…"></textarea></div>
+          <div class="full"><label>What happened / where did we lose time?</label><textarea id="happened" placeholder="Late front cross at 11, wide turn to tunnel…"></textarea></div>
+          <div class="full"><label>One thing to train next</label><input id="trainNext" placeholder="Tighter tunnel exits after rear cross" /></div>
+        </div>
+        <div class="row" style="margin-top:12px"><button class="btn" id="saveCourseBtn">Save run</button><button class="btn secondary" id="duplicateBtn">Duplicate for next round</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="history" class="view">
+    <div class="grid">
+      <div class="card span12"><div class="row between"><div><h2>Run history</h2><div class="muted small">Course maps, plans, outcomes and lessons together.</div></div></div><div style="margin-top:12px"><input id="historySearch" placeholder="Search dog, trial, class, obstacle, handling cue or notes…" /></div></div>
+      <div class="card span12"><h3>Handling patterns</h3><div class="formgrid"><div><label>Obstacle type</label><select id="patternObstacle"></select></div><div><label>Handling cue</label><select id="patternHandling"></select></div></div><div id="patternInsights" class="insightGrid" style="margin-top:12px"></div><div id="patternRuns" class="list" style="margin-top:12px"></div></div>
+      <div class="card span12"><div id="historyList" class="list"></div></div>
+    </div>
+  </section>
+
+  <section id="setup" class="view">
+    <div class="grid">
+      <div class="card span6"><h2>Dogs</h2><div class="formgrid"><div><label>Name</label><input id="dogName" placeholder="Muska" /></div><div><label>Height / division</label><input id="dogHeight" placeholder="8 in / 20 cm" /></div><div class="full"><label>Notes</label><input id="dogNotes" placeholder="Papillon · AAC / UKI" /></div></div><button id="addDogBtn" class="btn" style="margin-top:12px">Add dog</button><div id="dogList" class="list" style="margin-top:14px"></div></div>
+      <div class="card span6"><h2>Trials</h2><div class="formgrid"><div class="full"><label>Trial name</label><input id="trialName" placeholder="Club + trial" /></div><div><label>Date</label><input id="trialDate" type="date" /></div><div><label>Organization</label><select id="trialOrg"><option>AAC</option><option>UKI</option><option>CKC</option><option>Other</option></select></div><div class="full"><label>Venue</label><input id="trialVenue" placeholder="Venue / city" /></div></div><button id="addTrialBtn" class="btn" style="margin-top:12px">Create trial</button><div id="setupTrialList" class="list" style="margin-top:14px"></div></div>
+      <div class="card span12" id="installCard">
+        <div class="row between"><div><h3>Install Runline</h3><div id="installStatus" class="muted small">Runline can be installed on your Home Screen once this folder is hosted over HTTPS.</div></div><span id="installBadge" class="badge">PWA</span></div>
+        <div class="row" style="margin-top:12px"><button id="installBtn" class="btn">Install Runline</button></div>
+        <div id="installHelp" class="footerNote">On iPhone/iPad: open Runline in Safari → Share → Add to Home Screen → Add. Once installed, it opens full-screen and the app shell works offline.</div>
+      </div>
+      <div class="card span12"><h3>Backup + restore</h3><div class="row"><input id="importFile" type="file" accept="application/json" style="max-width:430px" /><button id="importBtn" class="btn secondary">Restore backup</button></div><div class="footerNote">Runline stores data in this browser on this device. Export a backup occasionally. Video files are stored separately in the browser and are not included in the JSON backup.</div></div>
+    </div>
+  </section>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+const KEY='runline-v5';
+const PREV_KEY='runline-v4';
+const OLD_KEY='runline-v3';
+const OLDER_KEY='runline-v2';
+const LEGACY_KEY='runline_v1';
+const VIDEO_DB='runline-video-v1';
+const VIDEO_STORE='videos';
+const defaultState={dogs:[],trials:[],runs:[]};
+const OBSTACLE_TYPES=[
+  {id:'jump',code:'J',name:'Jump'},
+  {id:'tunnel',code:'TUN',name:'Tunnel'},
+  {id:'weaves',code:'WV',name:'Weaves'},
+  {id:'dogwalk',code:'DW',name:'Dogwalk'},
+  {id:'aframe',code:'A',name:'A-frame'},
+  {id:'teeter',code:'TT',name:'Teeter'},
+  {id:'tire',code:'TR',name:'Tire'},
+  {id:'spread',code:'SP',name:'Spread / wall'},
+  {id:'other',code:'?',name:'Other'}
+];
+const MARKER_TYPES=[
+  {id:'front',code:'FC',name:'Front cross'},
+  {id:'rear',code:'RC',name:'Rear cross'},
+  {id:'blind',code:'BC',name:'Blind cross'},
+  {id:'send',code:'GO',name:'Send'},
+  {id:'collect',code:'COL',name:'Collection'},
+  {id:'decel',code:'DEC',name:'Deceleration'},
+  {id:'wrap',code:'WR',name:'Wrap'},
+  {id:'threadle',code:'TH',name:'Threadle'},
+  {id:'discrim',code:'DIS',name:'Discrimination'},
+  {id:'note',code:'!',name:'Watch / note'},
+  {id:'issue',code:'×',name:'Issue'}
+];
+let state=load();
+let currentRunId=null;
+let bgImage=null;
+let mapDataOriginal=null;
+let strokes=[];
+let markers=[];
+let obstacles=[];
+let actionHistory=[];
+let activeTool='planned';
+let activeMarkerKind=null;
+let activeObstacleType=null;
+let linkTargetObstacleId=null;
+let currentPhase='plan';
+let drawing=false;
+let currentStroke=null;
+let selectedMarkerId=null;
+let selectedObstacleId=null;
+let draggingMarker=false;
+let draggingObstacle=false;
+let dragOffset={x:0,y:0};
+let videoNotes=[];
+let videoMeta=null;
+let pendingVideoFile=null;
+let currentVideoObjectUrl=null;
+const $=id=>document.getElementById(id);
+
+function load(){
+  try{
+    const saved=localStorage.getItem(KEY) || localStorage.getItem(PREV_KEY) || localStorage.getItem(OLD_KEY) || localStorage.getItem(OLDER_KEY) || localStorage.getItem(LEGACY_KEY);
+    const parsed=saved?JSON.parse(saved):structuredClone(defaultState);
+    if(!parsed.dogs||!parsed.trials||!parsed.runs) return structuredClone(defaultState);
+    return parsed;
+  }catch{return structuredClone(defaultState)}
+}
+function persist(){localStorage.setItem(KEY,JSON.stringify(state));renderAll()}
+function uid(){return crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1600)}
+function fmtDate(d){if(!d)return'';return new Date(d+'T12:00:00').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})}
+function dogName(id){return state.dogs.find(x=>x.id===id)?.name||'Unknown dog'}
+function trialName(id){return state.trials.find(x=>x.id===id)?.name||'Unassigned trial'}
+function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function markerType(id){return MARKER_TYPES.find(x=>x.id===id)||MARKER_TYPES[9]}
+function obstacleType(id){return OBSTACLE_TYPES.find(x=>x.id===id)||OBSTACLE_TYPES[OBSTACLE_TYPES.length-1]}
+function obstacleById(id){return obstacles.find(o=>o.id===id)||null}
+function obstacleLabel(id){const o=obstacleById(id);return o?`#${o.number} ${obstacleType(o.type).name}`:'Unlinked'}
+function formatVideoTime(sec){sec=Math.max(0,Number(sec)||0);const m=Math.floor(sec/60),s=sec-m*60;return `${m}:${s.toFixed(1).padStart(4,'0')}`}
+function openVideoDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(VIDEO_DB,1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(VIDEO_STORE))db.createObjectStore(VIDEO_STORE,{keyPath:'runId'})};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+async function saveVideoBlob(runId,file){const db=await openVideoDB();return new Promise((resolve,reject)=>{const tx=db.transaction(VIDEO_STORE,'readwrite');tx.objectStore(VIDEO_STORE).put({runId,blob:file,name:file.name,type:file.type,size:file.size,updatedAt:new Date().toISOString()});tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error)}})}
+async function getVideoBlob(runId){const db=await openVideoDB();return new Promise((resolve,reject)=>{const tx=db.transaction(VIDEO_STORE,'readonly');const req=tx.objectStore(VIDEO_STORE).get(runId);req.onsuccess=()=>{db.close();resolve(req.result||null)};req.onerror=()=>{db.close();reject(req.error)}})}
+async function deleteVideoBlob(runId){if(!runId)return;const db=await openVideoDB();return new Promise((resolve,reject)=>{const tx=db.transaction(VIDEO_STORE,'readwrite');tx.objectStore(VIDEO_STORE).delete(runId);tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error)}})}
+function clearVideoObjectUrl(){if(currentVideoObjectUrl){URL.revokeObjectURL(currentVideoObjectUrl);currentVideoObjectUrl=null}}
+function showVideoBlob(blob,meta={}){clearVideoObjectUrl();const v=$('runVideo');if(!blob){v.pause();v.removeAttribute('src');v.load();v.classList.add('hidden');$('videoPlaceholder').classList.remove('hidden');$('removeVideoBtn').classList.add('hidden');renderVideoMeta();return}currentVideoObjectUrl=URL.createObjectURL(blob);v.src=currentVideoObjectUrl;v.classList.remove('hidden');$('videoPlaceholder').classList.add('hidden');$('removeVideoBtn').classList.remove('hidden');renderVideoMeta(meta)}
+function renderVideoMeta(meta=videoMeta){const box=$('videoMeta');if(!box)return;if(!meta){box.innerHTML='';$('videoSavedBadge').classList.add('hidden');return}const size=meta.size?` · ${(meta.size/1024/1024).toFixed(meta.size>20*1024*1024?0:1)} MB`:'';box.innerHTML=`<span class="badge">${esc(meta.name||'Run video')}${size}</span>${pendingVideoFile?'<span class="small muted">Will attach when you save the run.</span>':'<span class="small muted">Stored on this device.</span>'}`;$('videoSavedBadge').classList.toggle('hidden',!meta)}
+async function loadRunVideo(runId,meta){pendingVideoFile=null;videoMeta=meta||null;clearVideoObjectUrl();if(!meta){showVideoBlob(null);return}try{const rec=await getVideoBlob(runId);if(rec?.blob){showVideoBlob(rec.blob,meta)}else{showVideoBlob(null);videoMeta=meta;renderVideoMeta(meta);$('videoPlaceholder').textContent='Video metadata exists, but the video file is not available in this browser.'}}catch{showVideoBlob(null);$('videoPlaceholder').textContent='This browser could not open the stored video.'}}
+function resetVideoUI(){pendingVideoFile=null;videoMeta=null;videoNotes=[];clearVideoObjectUrl();const v=$('runVideo');if(v){v.pause();v.removeAttribute('src');v.load();v.classList.add('hidden')}$('videoPlaceholder').textContent='Add a run video to create timestamped obstacle notes.';$('videoPlaceholder').classList.remove('hidden');$('removeVideoBtn').classList.add('hidden');$('videoUpload').value='';renderVideoMeta();renderVideoNotes();refreshVideoObstacleSelect()}
+function refreshVideoObstacleSelect(){const sel=$('videoNoteObstacle');if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">General run</option>'+[...obstacles].sort((a,b)=>a.number-b.number).map(o=>`<option value="${o.id}">#${o.number} · ${esc(obstacleType(o.type).name)}</option>`).join('');if(obstacles.some(o=>o.id===cur))sel.value=cur;else sel.value=''}
+function renderVideoNotes(){const list=$('videoNoteList');if(!list)return;const notes=[...videoNotes].sort((a,b)=>a.time-b.time);if(!notes.length){list.innerHTML='<div class="empty">No timestamp notes yet.</div>';drawCanvas();renderRunTimeline();return}list.innerHTML=notes.map(n=>{const o=obstacleById(n.obstacleId);return `<div class="timeNote"><button class="timeButton" data-seek-note="${n.id}">▶ ${formatVideoTime(n.time)}</button><div class="timeNoteText"><div class="strong small">${o?`#${o.number} · ${esc(obstacleType(o.type).name)}`:'General run'}</div><div class="muted small">${esc(n.note||'No note')}</div></div><button class="btn danger mini" data-delete-video-note="${n.id}">×</button></div>`}).join('');drawCanvas();renderRunTimeline()}
+function seekVideo(time){const v=$('runVideo');if(!v.src)return toast('This run has no available video on this device.');v.currentTime=Math.max(0,Number(time)||0);v.scrollIntoView({behavior:'smooth',block:'center'});v.play().catch(()=>{})}
+function seekObstacleVideo(obstacleId){const note=[...videoNotes].filter(n=>n.obstacleId===obstacleId).sort((a,b)=>a.time-b.time)[0];if(!note)return toast('No video timestamp for that obstacle yet.');seekVideo(note.time)}
+
+function firstVideoNoteForObstacle(obstacleId){return [...videoNotes].filter(n=>n.obstacleId===obstacleId).sort((a,b)=>a.time-b.time)[0]||null}
+function activeTimelineObstacleId(time){const timed=[...videoNotes].filter(n=>n.obstacleId&&obstacles.some(o=>o.id===n.obstacleId)).sort((a,b)=>a.time-b.time);if(!timed.length)return null;let active=null;for(const n of timed){if(n.time<=time+.12)active=n;else break}return active?.obstacleId||null}
+function renderRunTimeline(){
+  const el=$('runTimeline'),general=$('timelineGeneral');if(!el||!general)return;
+  const sorted=[...obstacles].sort((a,b)=>a.number-b.number);
+  if(!sorted.length){el.innerHTML='<div class="empty" style="min-width:min(620px,85vw)">Number the course obstacles and the analysis strip will build itself here.</div>';general.innerHTML='';return}
+  const currentTime=Number($('runVideo')?.currentTime)||0,activeId=activeTimelineObstacleId(currentTime);
+  el.innerHTML=sorted.map(o=>{
+    const t=obstacleType(o.type),plan=markers.filter(m=>m.layer==='plan'&&m.obstacleId===o.id),issues=markers.filter(m=>m.layer==='review'&&m.obstacleId===o.id),vn=firstVideoNoteForObstacle(o.id);
+    const chips=[...plan.map(m=>`<span class="timelineCue" title="${esc(markerType(m.kind).name)}${m.label?' — '+esc(m.label):''}">${esc(markerType(m.kind).code)}</span>`),...issues.map(m=>`<span class="timelineIssue" title="${esc(m.label||'Review issue')}">×${m.label?' '+esc(m.label):''}</span>`)].join('');
+    const note=[vn?.note,o.note].filter(Boolean)[0]||'';
+    return `<button class="timelineStop ${vn?'hasTime':''} ${issues.length?'hasIssue':''} ${activeId===o.id?'active':''}" data-timeline-obstacle="${o.id}" title="${vn?'Jump to '+formatVideoTime(vn.time):'Obstacle '+o.number}"><div class="timelineTop"><div><span class="timelineNum">#${o.number}</span> <span class="timelineType">${esc(t.code)}</span></div>${vn?`<span class="timelineTime">▶ ${formatVideoTime(vn.time)}</span>`:''}</div><div class="timelineCues">${chips||'<span class="timelineEmpty">No linked cues/issues</span>'}</div>${note?`<div class="timelineNote">${esc(note)}</div>`:''}</button>`
+  }).join('');
+  const generalNotes=[...videoNotes].filter(n=>!n.obstacleId).sort((a,b)=>a.time-b.time);
+  general.innerHTML=generalNotes.length?'<span class="small muted" style="align-self:center">General:</span>'+generalNotes.map(n=>`<button class="badge" data-timeline-general="${n.id}">▶ ${formatVideoTime(n.time)}${n.note?' · '+esc(n.note):''}</button>`).join(''):'';
+}
+function updateTimelinePlayhead(){
+  const activeId=activeTimelineObstacleId(Number($('runVideo')?.currentTime)||0);let activeEl=null;
+  document.querySelectorAll('[data-timeline-obstacle]').forEach(b=>{const yes=b.dataset.timelineObstacle===activeId;b.classList.toggle('active',yes);if(yes)activeEl=b});
+  if(activeEl&&$('runVideo')&&!$('runVideo').paused){const vp=$('timelineViewport'),left=activeEl.offsetLeft-activeEl.parentElement.offsetLeft,right=left+activeEl.offsetWidth;if(left<vp.scrollLeft+12||right>vp.scrollLeft+vp.clientWidth-12)activeEl.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'})}
+}
+
+function switchView(id){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===id));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===id));if(id==='planner')setTimeout(drawCanvas,40)}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
+
+function renderAll(){renderDogs();renderTrials();renderSelectors();renderStats();renderHistory();renderMarkerList();renderObstacleList();renderPatternControls();renderPatternInsights();refreshVideoObstacleSelect();renderVideoNotes();renderRunTimeline()}
+function renderDogs(){const el=$('dogList');if(!state.dogs.length){el.innerHTML='<div class="empty">Add your first agility dog.</div>';return}el.innerHTML=state.dogs.map(d=>`<div class="item row between"><div><div class="strong">${esc(d.name)}</div><div class="small muted">${esc([d.height,d.notes].filter(Boolean).join(' · '))}</div></div><button class="btn danger mini" onclick="deleteDog('${d.id}')">Delete</button></div>`).join('')}
+function deleteDog(id){if(!confirm('Delete this dog profile? Existing runs will remain.'))return;state.dogs=state.dogs.filter(x=>x.id!==id);persist()}
+window.deleteDog=deleteDog;
+function renderTrials(){const recent=[...state.trials].sort((a,b)=>(b.date||'').localeCompare(a.date||''));const html=recent.length?recent.map(t=>{const count=state.runs.filter(r=>r.trialId===t.id).length;return`<div class="item row between"><div><div class="strong">${esc(t.name)}</div><div class="small muted">${esc(t.org)} · ${fmtDate(t.date)}${t.venue?' · '+esc(t.venue):''}</div></div><div class="row"><span class="badge">${count} run${count===1?'':'s'}</span><button class="btn secondary mini" onclick="planTrial('${t.id}')">Open</button></div></div>`}).join(''):'<div class="empty">No trials yet. Create one and add a course.</div>';$('trialList').innerHTML=html;$('setupTrialList').innerHTML=html}
+function planTrial(id){$('courseTrial').value=id;switchView('planner')}
+window.planTrial=planTrial;
+function renderSelectors(){const dogVal=$('courseDog').value,trialVal=$('courseTrial').value;const dogOpts='<option value="">Choose dog…</option>'+state.dogs.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');const trialOpts='<option value="">Choose trial…</option>'+[...state.trials].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');$('courseDog').innerHTML=dogOpts;$('courseTrial').innerHTML=trialOpts;if(state.dogs.some(d=>d.id===dogVal))$('courseDog').value=dogVal;if(state.trials.some(t=>t.id===trialVal))$('courseTrial').value=trialVal}
+function renderStats(){const n=state.runs.length,q=state.runs.filter(r=>r.result==='Q').length,clean=state.runs.filter(r=>Number(r.faults)===0&&r.result==='Q').length;$('statRuns').textContent=n;$('statQ').textContent=n?Math.round(q/n*100)+'%':'0%';$('statClean').textContent=clean}
+function renderHistory(){
+  const q=($('historySearch')?.value||'').toLowerCase();
+  const rows=[...state.runs].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).filter(r=>{
+    const obs=(r.obstacles||[]).map(o=>`#${o.number} ${obstacleType(o.type).name} ${o.note||''}`).join(' ');
+    const cues=(r.markers||[]).map(m=>`${markerType(m.kind).name} ${m.label||''} ${m.obstacleId||''}`).join(' ');
+    return [dogName(r.dogId),trialName(r.trialId),r.className,r.judge,r.worked,r.happened,r.trainNext,obs,cues].join(' ').toLowerCase().includes(q)
+  });
+  const el=$('historyList');if(!rows.length){el.innerHTML='<div class="empty">No matching runs yet.</div>';return}
+  el.innerHTML=rows.map(r=>`<div class="item row between"><div class="row grow"><img class="courseThumb" src="${r.mapData||''}" alt="course map" onerror="this.style.visibility='hidden'"/><div><div class="row"><span class="strong">${esc(dogName(r.dogId))} — ${esc(r.className||'Course')}</span>${r.result?`<span class="badge ${r.result==='Q'?'q':'nq'}">${esc(r.result)}</span>`:''}</div><div class="small muted">${esc(trialName(r.trialId))}${r.time?' · '+r.time+'s':''}${r.faults!==''?' · '+r.faults+' faults':''}${(r.obstacles||[]).length?' · '+(r.obstacles||[]).length+' obstacles':''}${(r.markers||[]).length?' · '+(r.markers||[]).length+' markers':''}${r.video?' · video':''}${(r.videoNotes||[]).length?' · '+(r.videoNotes||[]).length+' timestamps':''}</div><div class="small" style="margin-top:5px">${esc(r.trainNext||r.happened||'')}</div></div></div><button class="btn secondary mini" onclick="editRun('${r.id}')">Open</button></div>`).join('')
+}
+function editRun(id){const r=state.runs.find(x=>x.id===id);if(!r)return;currentRunId=id;$('courseDog').value=r.dogId||'';$('courseTrial').value=r.trialId||'';$('courseClass').value=r.className||'';$('courseRound').value=r.round||'';$('courseJudge').value=r.judge||'';$('runTime').value=r.time??'';$('runFaults').value=r.faults??'';$('runResult').value=r.result||'';$('runPlacement').value=r.placement||'';$('runSpeed').value=r.speed??'';$('runPoints').value=r.points??'';$('worked').value=r.worked||'';$('happened').value=r.happened||'';$('trainNext').value=r.trainNext||'';strokes=structuredClone(r.strokes||[]);markers=structuredClone(r.markers||[]);obstacles=structuredClone(r.obstacles||[]);videoNotes=structuredClone(r.videoNotes||[]);videoMeta=r.video?structuredClone(r.video):null;pendingVideoFile=null;normalizeAnnotations();actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;loadBackground(r.mapData||null);setPhase('plan');renderMarkerList();renderObstacleList();refreshVideoObstacleSelect();renderVideoNotes();loadRunVideo(r.id,r.video||null);switchView('planner')}
+window.editRun=editRun;
+
+$('addDogBtn').addEventListener('click',()=>{const name=$('dogName').value.trim();if(!name)return toast('Add a dog name first.');state.dogs.push({id:uid(),name,height:$('dogHeight').value.trim(),notes:$('dogNotes').value.trim()});$('dogName').value=$('dogHeight').value=$('dogNotes').value='';persist();toast('Dog added.')});
+$('addTrialBtn').addEventListener('click',()=>{const name=$('trialName').value.trim();if(!name)return toast('Give the trial a name.');state.trials.push({id:uid(),name,date:$('trialDate').value,org:$('trialOrg').value,venue:$('trialVenue').value.trim()});$('trialName').value=$('trialVenue').value='';$('trialDate').value='';persist();toast('Trial created.')});
+$('newTrialBtn').addEventListener('click',()=>switchView('setup'));
+$('historySearch').addEventListener('input',renderHistory);
+
+// Course planning tools
+const palette=$('markerPalette');
+palette.innerHTML=MARKER_TYPES.filter(x=>x.id!=='issue').map(m=>`<button class="markerBtn" data-marker-kind="${m.id}"><span class="markerCode">${m.code}</span><span>${m.name}</span></button>`).join('');
+$('editMarkerKind').innerHTML=MARKER_TYPES.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+const obstaclePalette=$('obstaclePalette');
+obstaclePalette.innerHTML=OBSTACLE_TYPES.map(o=>`<button class="obstacleBtn" data-obstacle-type="${o.id}"><span class="obstacleCode">${o.code}</span><span>${o.name}</span></button>`).join('');
+$('editObstacleType').innerHTML=OBSTACLE_TYPES.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
+
+function setPhase(phase){
+  currentPhase=phase;
+  document.querySelectorAll('.phase').forEach(b=>b.classList.toggle('active',b.dataset.phase===phase));
+  $('planTools').classList.toggle('hidden',phase!=='plan');
+  $('reviewTools').classList.toggle('hidden',phase!=='review');
+  setActiveTool(phase==='plan'?'planned':'actual');
+}
+document.querySelectorAll('.phase').forEach(b=>b.addEventListener('click',()=>setPhase(b.dataset.phase)));
+
+function setActiveTool(tool, markerKind=null){
+  if(tool==='marker' && selectedObstacleId) linkTargetObstacleId=selectedObstacleId;
+  if(tool!=='marker' && tool!=='select') linkTargetObstacleId=null;
+  activeTool=tool;activeMarkerKind=markerKind;activeObstacleType=null;selectedMarkerId=null;if(tool!=='marker')selectedObstacleId=null;hideMarkerEditor();hideObstacleEditor();
+  document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('active',x.dataset.tool===tool));
+  document.querySelectorAll('.markerBtn').forEach(x=>x.classList.toggle('active',tool==='marker'&&x.dataset.markerKind===markerKind));
+  document.querySelectorAll('.obstacleBtn').forEach(x=>x.classList.remove('active'));
+  const labels={planned:'Drawing planned line',actual:'Drawing actual line',select:'Tap a marker to edit or drag it',erase:'Tap an annotation to erase it',issue:'Tap to place an issue marker',videojump:'Tap a numbered obstacle to jump to its video moment',marker:`Place ${markerType(markerKind).name}`,obstacle:'Place obstacle'};
+  $('activeToolLabel').textContent=(tool==='marker'&&linkTargetObstacleId&&obstacleById(linkTargetObstacleId))?`${labels[tool]} → #${obstacleById(linkTargetObstacleId).number}`:(labels[tool]||'Ready');
+  $('plannerWrap').classList.toggle('selecting',tool==='select');
+  drawCanvas();
+}
+document.addEventListener('click',e=>{const tool=e.target.closest('.tool');if(tool)setActiveTool(tool.dataset.tool);const marker=e.target.closest('.markerBtn');if(marker)setActiveTool('marker',marker.dataset.markerKind);const ob=e.target.closest('.obstacleBtn');if(ob){setActiveTool('obstacle');activeObstacleType=ob.dataset.obstacleType;document.querySelectorAll('.obstacleBtn').forEach(x=>x.classList.toggle('active',x===ob));$('activeToolLabel').textContent=`Place ${obstacleType(activeObstacleType).name}`}});
+
+const canvas=$('courseCanvas'),ctx=canvas.getContext('2d');
+function normalizeAnnotations(){strokes=strokes.map(s=>({...s,id:s.id||uid()}));markers=markers.map(m=>({...m,id:m.id||uid(),kind:m.kind||'note',label:m.label||'',layer:m.layer||(m.kind==='issue'?'review':'plan'),obstacleId:m.obstacleId||null}));obstacles=obstacles.map((o,i)=>({...o,id:o.id||uid(),number:Number(o.number)||i+1,type:o.type||'other',note:o.note||''}))}
+function loadBackground(data){bgImage=null;mapDataOriginal=data||null;$('canvasHint').classList.toggle('hidden',!!data);if(!data){canvas.width=1200;canvas.height=850;drawCanvas();return}const img=new Image();img.onload=()=>{bgImage=img;const ratio=img.width/img.height;canvas.width=1200;canvas.height=Math.round(1200/ratio);drawCanvas()};img.src=data}
+function isPlanStroke(s){return s.tool==='planned'}
+function isReviewStroke(s){return s.tool==='actual'}
+function shouldShowLayer(layer){return layer==='plan'?$('showPlanLayer').checked:$('showReviewLayer').checked}
+function drawCanvas(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#0b0d10';ctx.fillRect(0,0,canvas.width,canvas.height);if(bgImage)ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);if($('showObstaclesLayer').checked){for(const o of obstacles)drawObstacle(o,o.id===selectedObstacleId)}for(const s of strokes){if((isPlanStroke(s)&&$('showPlanLayer').checked)||(isReviewStroke(s)&&$('showReviewLayer').checked))drawStroke(s)}for(const m of markers){if(shouldShowLayer(m.layer||'plan'))drawMarker(m,m.id===selectedMarkerId)}}
+function drawStroke(s){ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.tool==='planned'?'#29b6f6':'#ffa726';ctx.lineWidth=7;ctx.globalAlpha=.92;ctx.beginPath();s.points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.restore()}
+function roundedRect(c,x,y,w,h,r){const rr=Math.min(r,w/2,h/2);c.beginPath();c.moveTo(x+rr,y);c.arcTo(x+w,y,x+w,y+h,rr);c.arcTo(x+w,y+h,x,y+h,rr);c.arcTo(x,y+h,x,y,rr);c.arcTo(x,y,x+w,y,rr);c.closePath()}
+function drawMarker(m,selected=false){const type=markerType(m.kind);const review=(m.layer==='review');const fill=review?'#ef6c6c':'#173a31';const stroke=selected?'#ffffff':(review?'#ffd1d1':'#9fd6c2');ctx.save();ctx.font='800 20px Inter, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=selected?5:3;ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.beginPath();ctx.arc(m.x,m.y,25,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';const linked=obstacleById(m.obstacleId);ctx.fillText(linked?`${type.code}·${linked.number}`:type.code,m.x,m.y+1);if(m.label){ctx.font='700 17px Inter, sans-serif';const text=m.label.length>28?m.label.slice(0,27)+'…':m.label;const tw=Math.min(ctx.measureText(text).width+18,290);ctx.fillStyle='rgba(12,15,17,.9)';roundedRect(ctx,m.x-tw/2,m.y+32,tw,31,10);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=1;ctx.stroke();ctx.fillStyle='#f4f6f7';ctx.fillText(text,m.x,m.y+48)}ctx.restore()}
+function drawObstacle(o,selected=false){
+  const t=obstacleType(o.type);ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=selected?5:3;ctx.fillStyle='rgba(42,37,21,.9)';ctx.strokeStyle=selected?'#ffffff':'#e5cf78';ctx.beginPath();ctx.arc(o.x,o.y,23,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.font='850 20px Inter, sans-serif';ctx.fillText(String(o.number),o.x,o.y-2);ctx.font='800 10px Inter, sans-serif';ctx.fillStyle='#f1e3a3';ctx.fillText(t.code,o.x,o.y+17);const vn=videoNotes.find(n=>n.obstacleId===o.id);if(vn){ctx.fillStyle='#143340';ctx.strokeStyle='#9bd9ef';ctx.lineWidth=2;ctx.beginPath();ctx.arc(o.x+25,o.y-23,12,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.font='800 11px Inter, sans-serif';ctx.fillText('▶',o.x+26,o.y-22)}ctx.restore()
+}
+function obstacleNear(p,limit=38){for(let i=obstacles.length-1;i>=0;i--){const o=obstacles[i];if(Math.hypot(p.x-o.x,p.y-o.y)<=limit)return o}return null}
+function nearestObstacle(p,limit=115){let best=null,bestD=Infinity;for(const o of obstacles){const d=Math.hypot(p.x-o.x,p.y-o.y);if(d<bestD&&d<=limit){best=o;bestD=d}}return best}
+function nextObstacleNumber(){return obstacles.length?Math.max(...obstacles.map(o=>Number(o.number)||0))+1:1}
+function addObstacle(type,p){const o={id:uid(),number:nextObstacleNumber(),type:type||'other',note:'',x:p.x,y:p.y};obstacles.push(o);actionHistory.push({type:'obstacle',id:o.id});selectedObstacleId=o.id;renderObstacleList();refreshObstacleSelect();showObstacleEditor(o);drawCanvas();return o}
+function pointFromEvent(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}}
+function markerNear(p,limit=42){for(let i=markers.length-1;i>=0;i--){const m=markers[i];if(!shouldShowLayer(m.layer||'plan'))continue;if(Math.hypot(p.x-m.x,p.y-m.y)<=limit)return m}return null}
+function strokeNear(p,limit=32){for(let i=strokes.length-1;i>=0;i--){const s=strokes[i];if(isPlanStroke(s)&&!$('showPlanLayer').checked)continue;if(isReviewStroke(s)&&!$('showReviewLayer').checked)continue;for(const q of s.points){if(Math.hypot(p.x-q.x,p.y-q.y)<limit)return s}}return null}
+function addMarker(kind,p,layer){const near=nearestObstacle(p);const target=obstacleById(linkTargetObstacleId);const m={id:uid(),kind,label:'',x:p.x,y:p.y,layer,obstacleId:target?.id||near?.id||null};markers.push(m);actionHistory.push({type:'marker',id:m.id});selectedMarkerId=m.id;renderMarkerList();showMarkerEditor(m);drawCanvas();return m}
+
+canvas.addEventListener('pointerdown',e=>{
+  if(!bgImage)return;
+  const p=pointFromEvent(e);
+  if(activeTool==='obstacle'){addObstacle(activeObstacleType,p);return}
+  if(activeTool==='marker'){addMarker(activeMarkerKind,p,'plan');return}
+  if(activeTool==='issue'){const m=addMarker('issue',p,'review');m.label='';showMarkerEditor(m);return}
+  if(activeTool==='videojump'){const o=obstacleNear(p,46);if(!o)return toast('Tap a numbered obstacle.');seekObstacleVideo(o.id);return}
+  if(activeTool==='select'){
+    const m=markerNear(p);const o=obstacleNear(p);
+    if(m){selectedObstacleId=null;hideObstacleEditor();selectedMarkerId=m.id;draggingMarker=true;dragOffset={x:p.x-m.x,y:p.y-m.y};canvas.setPointerCapture(e.pointerId);showMarkerEditor(m);renderMarkerList();renderObstacleList();drawCanvas()}
+    else if(o){selectedMarkerId=null;hideMarkerEditor();selectedObstacleId=o.id;linkTargetObstacleId=o.id;draggingObstacle=true;dragOffset={x:p.x-o.x,y:p.y-o.y};canvas.setPointerCapture(e.pointerId);showObstacleEditor(o);renderMarkerList();renderObstacleList();drawCanvas()}
+    else{selectedMarkerId=null;selectedObstacleId=null;hideMarkerEditor();hideObstacleEditor();renderMarkerList();renderObstacleList();drawCanvas()}
+    return;
+  }
+  if(activeTool==='erase'){
+    const m=markerNear(p);if(m){markers=markers.filter(x=>x.id!==m.id);selectedMarkerId=null;renderMarkerList();hideMarkerEditor();drawCanvas();return}
+    const o=obstacleNear(p);if(o){deleteObstacleById(o.id);drawCanvas();return}
+    const s=strokeNear(p);if(s){strokes=strokes.filter(x=>x.id!==s.id);drawCanvas()}return;
+  }
+  if(activeTool!=='planned'&&activeTool!=='actual')return;
+  canvas.setPointerCapture(e.pointerId);drawing=true;currentStroke={id:uid(),tool:activeTool,points:[p]};
+});
+canvas.addEventListener('pointermove',e=>{
+  const p=pointFromEvent(e);
+  if(draggingMarker&&selectedMarkerId){const m=markers.find(x=>x.id===selectedMarkerId);if(m){m.x=Math.max(25,Math.min(canvas.width-25,p.x-dragOffset.x));m.y=Math.max(25,Math.min(canvas.height-25,p.y-dragOffset.y));drawCanvas()}return}
+  if(draggingObstacle&&selectedObstacleId){const o=obstacles.find(x=>x.id===selectedObstacleId);if(o){o.x=Math.max(25,Math.min(canvas.width-25,p.x-dragOffset.x));o.y=Math.max(25,Math.min(canvas.height-25,p.y-dragOffset.y));drawCanvas()}return}
+  if(!drawing||!currentStroke)return;currentStroke.points.push(p);drawCanvas();drawStroke(currentStroke)
+});
+function finishPointer(){if(draggingMarker){draggingMarker=false;return}if(draggingObstacle){draggingObstacle=false;return}if(drawing&&currentStroke&&currentStroke.points.length){strokes.push(currentStroke);actionHistory.push({type:'stroke',id:currentStroke.id})}drawing=false;currentStroke=null;drawCanvas()}
+canvas.addEventListener('pointerup',finishPointer);canvas.addEventListener('pointercancel',finishPointer);
+
+$('showObstaclesLayer').addEventListener('change',drawCanvas);$('showPlanLayer').addEventListener('change',drawCanvas);$('showReviewLayer').addEventListener('change',drawCanvas);
+$('undoBtn').addEventListener('click',()=>{const a=actionHistory.pop();if(!a){if(markers.length){markers.pop();renderMarkerList();drawCanvas();return}if(strokes.length){strokes.pop();drawCanvas();return}return}if(a.type==='marker')markers=markers.filter(m=>m.id!==a.id);else if(a.type==='obstacle')deleteObstacleById(a.id);else strokes=strokes.filter(s=>s.id!==a.id);if(selectedMarkerId===a.id){selectedMarkerId=null;hideMarkerEditor()}renderMarkerList();renderObstacleList();drawCanvas()});
+$('clearAnnotationsBtn').addEventListener('click',()=>{if(confirm('Clear all obstacles, planned lines, review lines, and markers?')){strokes=[];markers=[];obstacles=[];actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();renderMarkerList();renderObstacleList();refreshObstacleSelect();drawCanvas()}});
+$('mapUpload').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;const rd=new FileReader();rd.onload=()=>loadBackground(rd.result);rd.readAsDataURL(f)});
+
+function renderMarkerList(){const list=$('markerList'),wrap=$('markerListWrap');if(!markers.length){wrap.classList.add('hidden');list.innerHTML='';renderRunTimeline();return}wrap.classList.remove('hidden');list.innerHTML=markers.map(m=>{const t=markerType(m.kind);const o=obstacleById(m.obstacleId);return`<div class="markerItem ${m.id===selectedMarkerId?'selected':''}" data-marker-id="${m.id}"><span class="markerCode">${t.code}</span><div class="markerItemText"><div class="strong small">${esc(t.name)}${o?`<span class="linkedBadge">#${o.number} ${esc(obstacleType(o.type).code)}</span>`:''}</div><div class="muted small">${esc(m.label||'No note')}</div></div><button data-edit-marker="${m.id}">Edit</button></div>`}).join('');renderRunTimeline()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-edit-marker]');if(!b)return;const m=markers.find(x=>x.id===b.dataset.editMarker);if(!m)return;selectedObstacleId=null;hideObstacleEditor();selectedMarkerId=m.id;showMarkerEditor(m);setActiveToolKeepSelection('select');renderMarkerList();renderObstacleList();drawCanvas()});
+function setActiveToolKeepSelection(tool){activeTool=tool;activeMarkerKind=null;document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('active',x.dataset.tool===tool));document.querySelectorAll('.markerBtn').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.obstacleBtn').forEach(x=>x.classList.remove('active'));$('activeToolLabel').textContent='Tap a marker or obstacle to edit or drag it';$('plannerWrap').classList.toggle('selecting',tool==='select')}
+function refreshObstacleSelect(){const sel=$('editMarkerObstacle');if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">— Unlinked —</option>'+[...obstacles].sort((a,b)=>a.number-b.number).map(o=>`<option value="${o.id}">#${o.number} · ${esc(obstacleType(o.type).name)}</option>`).join('');if(obstacles.some(o=>o.id===cur))sel.value=cur;refreshVideoObstacleSelect()}
+function showMarkerEditor(m){selectedMarkerId=m.id;refreshObstacleSelect();$('markerEditor').classList.remove('hidden');$('editMarkerKind').value=m.kind;$('editMarkerObstacle').value=m.obstacleId||'';$('editMarkerLabel').value=m.label||''}
+function hideMarkerEditor(){$('markerEditor').classList.add('hidden')}
+$('closeMarkerEditor').addEventListener('click',()=>{selectedMarkerId=null;hideMarkerEditor();renderMarkerList();drawCanvas()});
+$('saveMarkerBtn').addEventListener('click',()=>{const m=markers.find(x=>x.id===selectedMarkerId);if(!m)return;m.kind=$('editMarkerKind').value;m.obstacleId=$('editMarkerObstacle').value||null;m.label=$('editMarkerLabel').value.trim();m.layer=m.kind==='issue'?'review':m.layer;renderMarkerList();drawCanvas();toast('Marker updated.')});
+$('deleteMarkerBtn').addEventListener('click',()=>{if(!selectedMarkerId)return;markers=markers.filter(x=>x.id!==selectedMarkerId);selectedMarkerId=null;hideMarkerEditor();renderMarkerList();drawCanvas();toast('Marker deleted.')});
+
+function renderObstacleList(){const list=$('obstacleList'),wrap=$('obstacleListWrap');if(!obstacles.length){wrap.classList.add('hidden');list.innerHTML='';refreshObstacleSelect();refreshVideoObstacleSelect();renderRunTimeline();return}wrap.classList.remove('hidden');list.innerHTML=[...obstacles].sort((a,b)=>a.number-b.number).map(o=>{const t=obstacleType(o.type);const cueCount=markers.filter(m=>m.obstacleId===o.id).length;const vn=[...videoNotes].filter(n=>n.obstacleId===o.id).sort((a,b)=>a.time-b.time)[0];return`<div class="markerItem ${o.id===selectedObstacleId?'selected':''}"><span class="obstacleCode">${o.number}</span><div class="markerItemText"><div class="strong small">${esc(t.name)}${cueCount?`<span class="linkedBadge">${cueCount} cue${cueCount===1?'':'s'}</span>`:''}${vn?`<span class="videoLinked">▶ ${formatVideoTime(vn.time)}</span>`:''}</div><div class="muted small">${esc(o.note||t.code)}</div></div>${vn?`<button data-seek-obstacle="${o.id}">Video</button>`:''}<button data-edit-obstacle="${o.id}">Edit</button></div>`}).join('');refreshObstacleSelect();refreshVideoObstacleSelect();renderRunTimeline()}
+function showObstacleEditor(o){selectedObstacleId=o.id;$('obstacleEditor').classList.remove('hidden');$('editObstacleNumber').value=o.number;$('editObstacleType').value=o.type;$('editObstacleNote').value=o.note||''}
+function hideObstacleEditor(){$('obstacleEditor').classList.add('hidden')}
+function deleteObstacleById(id){obstacles=obstacles.filter(o=>o.id!==id);markers.forEach(m=>{if(m.obstacleId===id)m.obstacleId=null});videoNotes.forEach(n=>{if(n.obstacleId===id)n.obstacleId=null});if(selectedObstacleId===id){selectedObstacleId=null;hideObstacleEditor()}if(linkTargetObstacleId===id)linkTargetObstacleId=null;refreshObstacleSelect();renderMarkerList();renderObstacleList()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-edit-obstacle]');if(!b)return;const o=obstacles.find(x=>x.id===b.dataset.editObstacle);if(!o)return;selectedMarkerId=null;hideMarkerEditor();selectedObstacleId=o.id;linkTargetObstacleId=o.id;showObstacleEditor(o);setActiveToolKeepSelection('select');renderMarkerList();renderObstacleList();drawCanvas()});
+$('closeObstacleEditor').addEventListener('click',()=>{selectedObstacleId=null;hideObstacleEditor();renderObstacleList();drawCanvas()});
+$('saveObstacleBtn').addEventListener('click',()=>{const o=obstacles.find(x=>x.id===selectedObstacleId);if(!o)return;const n=Math.max(1,Number($('editObstacleNumber').value)||1);o.number=n;o.type=$('editObstacleType').value;o.note=$('editObstacleNote').value.trim();renderObstacleList();renderMarkerList();refreshObstacleSelect();drawCanvas();toast('Obstacle updated.')});
+$('deleteObstacleBtn').addEventListener('click',()=>{if(!selectedObstacleId)return;deleteObstacleById(selectedObstacleId);drawCanvas();toast('Obstacle deleted.')});
+
+function clearForm(keepTrial=false){currentRunId=null;const keep=$('courseTrial').value;['courseClass','courseRound','courseJudge','runTime','runFaults','runPlacement','runSpeed','runPoints','worked','happened','trainNext'].forEach(id=>$(id).value='');$('runResult').value='';$('mapUpload').value='';strokes=[];markers=[];obstacles=[];actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();resetVideoUI();renderMarkerList();renderObstacleList();refreshObstacleSelect();loadBackground(null);if(!keepTrial)$('courseTrial').value='';else $('courseTrial').value=keep;setPhase('plan')}
+$('clearCourseBtn').addEventListener('click',()=>clearForm(false));
+function currentMapData(){return mapDataOriginal||null}
+$('saveCourseBtn').addEventListener('click',async()=>{if(!$('courseDog').value)return toast('Choose a dog.');if(!$('courseTrial').value)return toast('Choose a trial.');if(!$('courseClass').value.trim())return toast('Add the class name.');const existing=currentRunId?state.runs.find(x=>x.id===currentRunId):null;const runId=currentRunId||uid();if(pendingVideoFile){try{await saveVideoBlob(runId,pendingVideoFile);videoMeta={name:pendingVideoFile.name,type:pendingVideoFile.type,size:pendingVideoFile.size};pendingVideoFile=null;renderVideoMeta()}catch(e){console.error(e);return toast('Could not store the video on this device.')}}const r={id:runId,createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),dogId:$('courseDog').value,trialId:$('courseTrial').value,className:$('courseClass').value.trim(),round:$('courseRound').value.trim(),judge:$('courseJudge').value.trim(),mapData:currentMapData(),strokes:structuredClone(strokes),markers:structuredClone(markers),obstacles:structuredClone(obstacles),video:videoMeta?structuredClone(videoMeta):null,videoNotes:structuredClone(videoNotes),time:$('runTime').value,faults:$('runFaults').value,result:$('runResult').value,placement:$('runPlacement').value.trim(),speed:$('runSpeed').value,points:$('runPoints').value,worked:$('worked').value.trim(),happened:$('happened').value.trim(),trainNext:$('trainNext').value.trim()};const idx=state.runs.findIndex(x=>x.id===r.id);if(idx>=0)state.runs[idx]=r;else state.runs.push(r);currentRunId=r.id;persist();toast('Run saved.')} );
+$('duplicateBtn').addEventListener('click',()=>{currentRunId=null;$('courseRound').value='';$('runTime').value=$('runFaults').value=$('runPlacement').value=$('runSpeed').value=$('runPoints').value='';$('runResult').value='';$('worked').value=$('happened').value=$('trainNext').value='';strokes=strokes.filter(s=>s.tool==='planned');markers=markers.filter(m=>m.layer==='plan');videoNotes=[];videoMeta=null;pendingVideoFile=null;clearVideoObjectUrl();$('videoUpload').value='';showVideoBlob(null);$('videoPlaceholder').textContent='Add a run video to create timestamped obstacle notes.';actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();renderVideoNotes();renderMarkerList();renderObstacleList();refreshObstacleSelect();setPhase('plan');drawCanvas();toast('Duplicated — plan kept, review and video cleared.')});
+
+
+$('videoUpload').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;pendingVideoFile=f;videoMeta={name:f.name,type:f.type,size:f.size};showVideoBlob(f,videoMeta);$('videoPlaceholder').textContent='Add a run video to create timestamped obstacle notes.';toast('Video ready — save the run to attach it.')});
+$('runVideo').addEventListener('loadedmetadata',()=>renderVideoMeta());
+$('markVideoTimeBtn').addEventListener('click',()=>{const v=$('runVideo');if(!v.src)return toast('Add a run video first.');const obstacleId=$('videoNoteObstacle').value||null;const note=$('videoNoteText').value.trim();if(!obstacleId&&!note)return toast('Choose an obstacle or add a note.');videoNotes.push({id:uid(),time:Number(v.currentTime)||0,obstacleId,note});$('videoNoteText').value='';renderVideoNotes();renderObstacleList();toast(`Marked ${formatVideoTime(v.currentTime)}.`)});
+document.addEventListener('click',e=>{const seek=e.target.closest('[data-seek-note]');if(seek){const n=videoNotes.find(x=>x.id===seek.dataset.seekNote);if(n)seekVideo(n.time);return}const del=e.target.closest('[data-delete-video-note]');if(del){videoNotes=videoNotes.filter(x=>x.id!==del.dataset.deleteVideoNote);renderVideoNotes();renderObstacleList();return}const ob=e.target.closest('[data-seek-obstacle]');if(ob){seekObstacleVideo(ob.dataset.seekObstacle);return}});
+document.addEventListener('click',e=>{const stop=e.target.closest('[data-timeline-obstacle]');if(stop){const id=stop.dataset.timelineObstacle;const note=firstVideoNoteForObstacle(id);$('videoNoteObstacle').value=id;if(note)seekVideo(note.time);else toast('No video timestamp for this obstacle yet.');return}const gen=e.target.closest('[data-timeline-general]');if(gen){const n=videoNotes.find(x=>x.id===gen.dataset.timelineGeneral);if(n)seekVideo(n.time)}});
+$('runVideo').addEventListener('timeupdate',updateTimelinePlayhead);
+$('runVideo').addEventListener('seeked',updateTimelinePlayhead);
+$('removeVideoBtn').addEventListener('click',async()=>{if(!confirm('Remove this run video from Runline on this device? Timestamp notes will stay unless you delete them.'))return;if(currentRunId){try{await deleteVideoBlob(currentRunId)}catch(e){console.error(e)}}pendingVideoFile=null;videoMeta=null;clearVideoObjectUrl();showVideoBlob(null);$('videoUpload').value='';const r=currentRunId?state.runs.find(x=>x.id===currentRunId):null;if(r){r.video=null;persist()}toast('Video removed. Timestamp notes kept.')});
+
+function renderPatternControls(){
+  const os=$('patternObstacle'),hs=$('patternHandling');if(!os||!hs)return;const ov=os.value,hv=hs.value;
+  os.innerHTML='<option value="">Any obstacle</option>'+OBSTACLE_TYPES.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
+  hs.innerHTML='<option value="">Any handling cue</option>'+MARKER_TYPES.filter(m=>!['issue','note'].includes(m.id)).map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  os.value=ov;hs.value=hv;
+}
+function matchingPatternRuns(){const ot=$('patternObstacle')?.value||'',hk=$('patternHandling')?.value||'';return state.runs.filter(r=>{const obs=r.obstacles||[],marks=r.markers||[];if(!ot&&!hk)return false;return marks.some(m=>{if(m.layer!=='plan')return false;if(hk&&m.kind!==hk)return false;const o=obs.find(x=>x.id===m.obstacleId);if(ot&&(!o||o.type!==ot))return false;return true})})}
+function renderPatternInsights(){const box=$('patternInsights'),list=$('patternRuns');if(!box||!list)return;const runs=matchingPatternRuns();const ot=$('patternObstacle')?.value||'',hk=$('patternHandling')?.value||'';const active=ot||hk;if(!active){box.innerHTML='<div class="empty" style="grid-column:1/-1">Choose an obstacle type, a handling cue, or both to inspect your history.</div>';list.innerHTML='';return}const q=runs.filter(r=>r.result==='Q').length;const issueRuns=runs.filter(r=>{const obs=r.obstacles||[],marks=r.markers||[];const matchedIds=new Set(marks.filter(m=>m.layer==='plan'&&(!hk||m.kind===hk)).map(m=>m.obstacleId).filter(id=>{if(!id)return !ot;const o=obs.find(x=>x.id===id);return !ot||(o&&o.type===ot)}));return marks.some(m=>m.layer==='review'&&m.kind==='issue'&&(matchedIds.size===0||matchedIds.has(m.obstacleId))) }).length;box.innerHTML=`<div class="insight"><div class="value">${runs.length}</div><div class="label">matching runs</div></div><div class="insight"><div class="value">${runs.length?Math.round(q/runs.length*100):0}%</div><div class="label">Q rate</div></div><div class="insight"><div class="value">${issueRuns}</div><div class="label">issues at matched obstacle</div></div>`;list.innerHTML=runs.length?runs.slice(0,8).map(r=>`<div class="item row between"><div><div class="strong">${esc(dogName(r.dogId))} — ${esc(r.className||'Course')}</div><div class="small muted">${esc(trialName(r.trialId))}${r.result?' · '+esc(r.result):''}${r.time?' · '+r.time+'s':''}</div></div><button class="btn secondary mini" onclick="editRun('${r.id}')">Open</button></div>`).join(''):'<div class="empty">No runs match this combination yet.</div>'}
+$('patternObstacle').addEventListener('change',renderPatternInsights);$('patternHandling').addEventListener('change',renderPatternInsights);
+
+$('exportBtn').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='runline-backup.json';a.click();URL.revokeObjectURL(a.href)});
+$('importBtn').addEventListener('click',()=>{const f=$('importFile').files?.[0];if(!f)return toast('Choose a backup file.');const rd=new FileReader();rd.onload=()=>{try{const data=JSON.parse(rd.result);if(!data.dogs||!data.trials||!data.runs)throw Error();state=data;persist();toast('Backup restored.')}catch{toast('That backup file is not valid.')}};rd.readAsText(f)});
+
+
+// PWA install + offline shell
+let deferredInstallPrompt=null;
+const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+function renderInstallState(){
+  const btn=$('installBtn'),status=$('installStatus'),badge=$('installBadge'),help=$('installHelp');
+  if(!btn||!status)return;
+  if(isStandalone()){
+    status.textContent='Installed on this device.';badge.textContent='Installed';btn.textContent='Runline is installed';btn.disabled=true;help.textContent='Runline is opening in standalone app mode. Course plans and saved runs remain on this device.';return;
+  }
+  const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(deferredInstallPrompt){status.textContent='Runline is ready to install.';btn.textContent='Install Runline';btn.disabled=false;help.textContent='Tap Install Runline and approve the browser prompt.';return;}
+  if(isiOS){status.textContent='Ready for Home Screen installation in Safari.';btn.textContent='Show iPhone install steps';btn.disabled=false;help.textContent='Safari → Share → Add to Home Screen → Add. Runline will then open full-screen like an app.';return;}
+  status.textContent='Open this hosted app in a supported browser to install it.';btn.textContent='Install instructions';btn.disabled=false;help.textContent='Use the browser menu and choose Install app / Add to Home Screen.';
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;renderInstallState()});
+window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;renderInstallState();toast('Runline installed.')});
+$('installBtn')?.addEventListener('click',async()=>{
+  if(deferredInstallPrompt){deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;renderInstallState();return;}
+  const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(isiOS)toast('Safari: Share → Add to Home Screen → Add');
+  else toast('Browser menu → Install app / Add to Home Screen');
+});
+if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Service worker registration failed',err)));
+}
+window.addEventListener('online',()=>toast('Back online.'));
+window.addEventListener('offline',()=>toast('Offline mode — Runline still works.'));
+renderInstallState();
+
+normalizeAnnotations();renderAll();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');
+</script>
+</body>
+</html>

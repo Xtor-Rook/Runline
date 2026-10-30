@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "Runline — Agility Trial Planner",
+  "short_name": "Runline",
+  "description": "Plan agility courses, record run results, review video by obstacle, and track handling patterns.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d0f11",
+  "theme_color": "#111214",
+  "categories": ["sports", "productivity"],
+  "icons": [
+    {"src":"icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"icons/icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ]
+}
