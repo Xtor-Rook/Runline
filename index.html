@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#111214" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://ubljegtzykqyajetfdas.supabase.co wss://ubljegtzykqyajetfdas.supabase.co; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
-<title>Runline v1.4 — Agility Trial Planner</title>
+<title>Runline v1.5 — Agility Trial Planner</title>
 <meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
 <meta name="application-name" content="Runline" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -100,6 +100,17 @@ body.mapExpandedOpen{overflow:hidden}
 .cloudDot.on{background:var(--accent)}
 .cloudDot.syncing{background:var(--actual)}
 .cloudEmail{max-width:390px}
+
+/* v1.5 ringside usability */
+.plannerBottomNav{position:fixed;left:50%;transform:translateX(-50%);bottom:max(8px,env(safe-area-inset-bottom));z-index:80;width:min(620px,calc(100% - 20px));display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:7px;background:rgba(15,18,21,.94);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.09);border-radius:17px;box-shadow:0 16px 45px rgba(0,0,0,.42)}
+.plannerBottomNav button{border:0;background:transparent;color:var(--muted);border-radius:11px;padding:7px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:750}
+.plannerBottomNav button span{font-size:17px;line-height:1}.plannerBottomNav button small{font-size:10px}.plannerBottomNav button.save{background:var(--accent);color:#0b1512}
+.quickResultButtons{display:flex;gap:8px;flex-wrap:wrap}.quickResultBtn{min-width:62px;padding:12px 16px;border-radius:12px;border:1px solid var(--line);background:#111418;color:var(--text);font-weight:850}.quickResultBtn.active{box-shadow:0 0 0 2px rgba(255,255,255,.16) inset;border-color:#fff}.quickResultBtn.q.active{background:#1d3928;color:#c8f3d3}.quickResultBtn.nq.active{background:#3b2024;color:#ffd0d0}
+#courseCanvas{transform-origin:0 0;will-change:transform}.plannerWrap.navMode{cursor:grab}.plannerWrap.navMode:active{cursor:grabbing}.plannerWrap.navMode #courseCanvas{touch-action:none}
+#localSaveBadge.dirty{background:#3b2e17;color:#ffd78f}#localSaveBadge.saved{background:#1c2a21;color:#b6e6c1}#plannerCloudBadge.synced{background:#1c2a21;color:#b6e6c1}#plannerCloudBadge.pending{background:#342e1e;color:#f4d69c}
+body.ringside .topbar,body.ringside .tabs{display:none}body.ringside .plannerHeader{position:sticky;top:max(6px,env(safe-area-inset-top));z-index:30;padding:11px}body.ringside .plannerHeader h2{font-size:17px;margin-bottom:2px}body.ringside .plannerHeader .panelActions #togglePanelsBtn,body.ringside .plannerHeader #clearCourseBtn{display:none}body.ringside #ringsideSummary{display:block!important}body.ringside #mapCard{grid-column:span 12;order:1}body.ringside #quickResultCard{order:2}body.ringside #courseToolsCard{grid-column:span 12;order:3}body.ringside #videoReviewCard{order:4}body.ringside #runResultCard{order:5}body.ringside #courseToolsCard>details,body.ringside #markerEditor,body.ringside #obstacleEditor,body.ringside #obstacleListWrap,body.ringside #markerListWrap,body.ringside #courseToolsCard>.toolrow{display:none!important}
+body.ringside .app{padding-top:max(8px,env(safe-area-inset-top))}
+@media(max-width:700px){.plannerHeader .panelActions{width:100%;justify-content:flex-start}.quickResultButtons{width:100%;display:grid;grid-template-columns:repeat(4,1fr)}.quickResultBtn{min-width:0;padding:13px 5px}.plannerBottomNav{bottom:max(6px,env(safe-area-inset-bottom));width:calc(100% - 12px)}}
 </style>
 </head>
 <body>
@@ -122,7 +133,7 @@ body.mapExpandedOpen{overflow:hidden}
   <section id="today" class="view active">
     <div class="grid">
       <div class="card span12"><div class="row between"><div><h2>Trial day</h2><div class="muted small">Keep the important stuff one tap away.</div></div><button class="btn" id="newTrialBtn">+ New trial</button></div></div>
-      <div class="card span4"><div class="stat"><div class="value" id="statRuns">0</div><div class="label">Runs logged</div></div></div>
+      <div class="card span4" id="courseToolsCard"><div class="stat"><div class="value" id="statRuns">0</div><div class="label">Runs logged</div></div></div>
       <div class="card span4"><div class="stat"><div class="value" id="statQ">0%</div><div class="label">Qualifying rate</div></div></div>
       <div class="card span4"><div class="stat"><div class="value" id="statClean">0</div><div class="label">Clean runs</div></div></div>
       <div class="card span12"><h3>Current / recent trials</h3><div id="trialList" class="list"></div></div>
@@ -131,7 +142,7 @@ body.mapExpandedOpen{overflow:hidden}
 
   <section id="planner" class="view">
     <div class="grid">
-      <div class="card span12"><div class="row between"><div><h2>Course planner</h2><div class="muted small">Plan the handling, then review the run on the same map.</div></div><div class="panelActions"><button class="btn secondary mini" id="togglePanelsBtn">Collapse panels</button><button class="btn secondary" id="clearCourseBtn">New course</button></div></div></div>
+      <div class="card span12 plannerHeader" id="plannerHeader"><div class="row between"><div><h2>Course planner</h2><div class="muted small">Plan the handling, then review the run on the same map.</div><div id="ringsideSummary" class="small muted hidden" style="margin-top:4px"></div></div><div class="panelActions"><span id="localSaveBadge" class="badge">Not saved</span><span id="plannerCloudBadge" class="badge">Cloud off</span><button class="btn secondary mini" id="ringsideBtn">Ringside mode</button><button class="btn secondary mini" id="togglePanelsBtn">Collapse panels</button><button class="btn secondary" id="clearCourseBtn">New course</button></div></div></div>
 
       <div class="card span4">
         <details class="collapseSection" data-collapse-key="course-details" open>
@@ -236,13 +247,16 @@ body.mapExpandedOpen{overflow:hidden}
           <div class="row">
             <span class="badge mapExpandedBadge">Map workspace</span>
             <div id="activeToolLabel" class="small muted">Drawing planned line</div>
+            <button class="btn secondary mini" id="mapNavBtn" type="button">✋ Pan / zoom</button>
+            <button class="btn secondary mini hidden" id="mapResetBtn" type="button">Reset view</button>
+            <span id="mapZoomLabel" class="badge">100%</span>
             <button class="btn secondary mini mapExpandBtn" id="mapExpandBtn" type="button">⛶ Full screen</button>
           </div>
         </div>
         <div class="plannerWrap" id="plannerWrap"><canvas id="courseCanvas" width="1200" height="850"></canvas><div id="canvasHint" class="canvasHint">Upload a course-map photo or screenshot to begin.</div></div>
       </div>
 
-      <details class="card span12 collapseCard" data-collapse-key="video-review">
+      <details class="card span12 collapseCard" id="videoReviewCard" data-collapse-key="video-review">
         <summary><div><h3>Run video review</h3><div class="muted small">Attach the run, mark moments by obstacle, then jump back to them from the course.</div></div><span id="videoSavedBadge" class="badge hidden">Video attached</span></summary>
         <div class="collapseCardBody">
         <div class="videoGrid">
@@ -271,7 +285,19 @@ body.mapExpandedOpen{overflow:hidden}
         </div>
       </details>
 
-      <details class="card span12 collapseCard" data-collapse-key="run-result">
+      <div class="card span12 quickResultCard" id="quickResultCard">
+        <div class="row between">
+          <div><h3 style="margin:0">Quick result</h3><div class="muted small" style="margin-top:4px">One tap ringside; you can add time, faults and review later.</div></div>
+          <div class="quickResultButtons" id="quickResultButtons">
+            <button class="quickResultBtn q" data-quick-result="Q">Q</button>
+            <button class="quickResultBtn nq" data-quick-result="NQ">NQ</button>
+            <button class="quickResultBtn" data-quick-result="FEO">FEO</button>
+            <button class="quickResultBtn" data-quick-result="Withdrawn">WD</button>
+          </div>
+        </div>
+      </div>
+
+      <details class="card span12 collapseCard" id="runResultCard" data-collapse-key="run-result">
         <summary><h3>Run result + review</h3></summary>
         <div class="collapseCardBody">
         <div class="formgrid">
@@ -331,6 +357,13 @@ body.mapExpandedOpen{overflow:hidden}
     </div>
   </section>
 </div>
+<nav id="plannerBottomNav" class="plannerBottomNav hidden" aria-label="Run planner shortcuts">
+  <button data-planner-nav="map"><span>▣</span><small>Map</small></button>
+  <button data-planner-nav="plan"><span>↗</span><small>Plan</small></button>
+  <button data-planner-nav="video"><span>▶</span><small>Video</small></button>
+  <button data-planner-nav="result"><span>✓</span><small>Result</small></button>
+  <button data-planner-nav="save" class="save"><span>●</span><small>Save</small></button>
+</nav>
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js"></script>
