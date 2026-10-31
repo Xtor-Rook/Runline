@@ -63,6 +63,7 @@ let cloudUser=null;
 let cloudSyncTimer=null;
 let cloudSyncing=false;
 let suppressCloudSync=false;
+let cloudRecoveryMode=false;
 let plannerDirty=false;
 let plannerLocalSaved=false;
 let plannerCloudState='off';
@@ -519,7 +520,10 @@ function setCloudUI(mode,msg=''){
   if(!dot||!badge)return;
   dot.classList.toggle('on',mode==='on');dot.classList.toggle('syncing',mode==='syncing');
   badge.textContent=mode==='syncing'?'Syncing…':mode==='on'?'Cloud on':'Local only';
-  out?.classList.toggle('hidden',!!cloudUser);inn?.classList.toggle('hidden',!cloudUser);
+  const recovery=$('cloudRecovery');
+  out?.classList.toggle('hidden',!!cloudUser||cloudRecoveryMode);
+  inn?.classList.toggle('hidden',!cloudUser||cloudRecoveryMode);
+  recovery?.classList.toggle('hidden',!cloudRecoveryMode);
   if(status&&msg)status.textContent=msg;
 }
 function queueCloudSync(){
@@ -653,12 +657,46 @@ async function handleCloudSession(session){
     await syncCloud(false);
   }else setCloudUI('off','Sign in to sync between devices.');
 }
+function showCloudRecovery(session){
+  cloudRecoveryMode=true;
+  cloudUser=session?.user||cloudUser||null;
+  setCloudUI('on','Password recovery verified. Choose a new password.');
+  $('cloudRecoveryPassword')?.focus();
+}
+function leaveCloudRecovery(){
+  cloudRecoveryMode=false;
+  $('cloudRecoveryPassword').value='';
+  $('cloudRecoveryPasswordConfirm').value='';
+}
 function initCloud(){
   if(!window.supabase?.createClient){setCloudUI('off','Cloud library unavailable offline; local Runline still works.');return}
   cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  cloudClient.auth.getSession().then(({data})=>handleCloudSession(data.session));
-  cloudClient.auth.onAuthStateChange((_event,session)=>setTimeout(()=>handleCloudSession(session),0));
+  cloudClient.auth.getSession().then(({data})=>{if(!cloudRecoveryMode)handleCloudSession(data.session)});
+  cloudClient.auth.onAuthStateChange((event,session)=>setTimeout(()=>{
+    if(event==='PASSWORD_RECOVERY'){showCloudRecovery(session);return}
+    if(event==='SIGNED_OUT')cloudRecoveryMode=false;
+    if(!cloudRecoveryMode)handleCloudSession(session);
+  },0));
 }
+$('cloudForgotPasswordBtn')?.addEventListener('click',async()=>{
+  const email=$('cloudEmail').value.trim();
+  if(!email)return toast('Enter your email address first.');
+  if(!cloudClient)return toast('Cloud library is not available right now.');
+  const btn=$('cloudForgotPasswordBtn');
+  btn.disabled=true;
+  const redirectTo=location.origin+location.pathname;
+  const {error}=await cloudClient.auth.resetPasswordForEmail(email,{redirectTo});
+  if(error){
+    console.error(error);
+    btn.disabled=false;
+    if((error.message||'').toLowerCase().includes('rate'))return toast('Recovery email limit reached — try again later.');
+    return toast(error.message||'Could not send recovery email.');
+  }
+  toast('Password recovery email sent.');
+  let left=60;
+  btn.textContent='Recovery sent · 60s';
+  const timer=setInterval(()=>{left--;if(left<=0){clearInterval(timer);btn.disabled=false;btn.textContent='Forgot password?'}else btn.textContent=`Recovery sent · ${left}s`;},1000);
+});
 $('cloudPasswordSignInBtn')?.addEventListener('click',async()=>{
   const email=$('cloudEmail').value.trim(),password=$('cloudPassword').value;
   if(!email||!password)return toast('Enter your email and password.');
@@ -695,6 +733,28 @@ $('cloudFirstPasswordBtn')?.addEventListener('click',async()=>{
   $('cloudFirstPasswordWrap')?.classList.add('hidden');
   toast('First cloud password set.');
 });
+$('cloudRecoverySaveBtn')?.addEventListener('click',async()=>{
+  if(!cloudClient||!cloudRecoveryMode)return toast('Open the recovery link from your email first.');
+  const password=$('cloudRecoveryPassword').value;
+  const confirmPassword=$('cloudRecoveryPasswordConfirm').value;
+  if(!password||password.length<12)return toast('Use at least 12 characters.');
+  if(password!==confirmPassword)return toast('Passwords do not match.');
+  const btn=$('cloudRecoverySaveBtn');btn.disabled=true;
+  const {error}=await cloudClient.auth.updateUser({password});
+  btn.disabled=false;
+  if(error){console.error(error);return toast(error.message||'Could not reset password.')}
+  leaveCloudRecovery();
+  await cloudClient.auth.signOut();
+  cloudUser=null;
+  setCloudUI('off','Password reset. Sign in with your new password.');
+  toast('Password reset. Sign in with the new password.');
+});
+$('cloudRecoveryCancelBtn')?.addEventListener('click',async()=>{
+  leaveCloudRecovery();
+  if(cloudClient)await cloudClient.auth.signOut();
+  cloudUser=null;
+  setCloudUI('off','Recovery cancelled. Sign in when ready.');
+});
 $('cloudSignInBtn')?.addEventListener('click',async()=>{
   const email=$('cloudEmail').value.trim();
   if(!email)return toast('Enter your email address.');
@@ -715,7 +775,7 @@ $('cloudSignInBtn')?.addEventListener('click',async()=>{
   btn.textContent='Link sent · 60s';
   const timer=setInterval(()=>{left--;if(left<=0){clearInterval(timer);btn.disabled=false;btn.textContent='Send magic link'}else btn.textContent=`Link sent · ${left}s`;},1000);
 });
-$('cloudSignOutBtn')?.addEventListener('click',async()=>{if(cloudClient)await cloudClient.auth.signOut();cloudUser=null;setCloudUI('off','Signed out. Local data remains on this device.');});
+$('cloudSignOutBtn')?.addEventListener('click',async()=>{leaveCloudRecovery();if(cloudClient)await cloudClient.auth.signOut();cloudUser=null;setCloudUI('off','Signed out. Local data remains on this device.');});
 $('cloudSyncBtn')?.addEventListener('click',()=>syncCloud(true));
 window.addEventListener('online',()=>{toast('Back online.');queueCloudSync()});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')queueCloudSync()});
