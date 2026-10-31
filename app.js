@@ -9,6 +9,7 @@ const VIDEO_DB='runline-video-v1';
 const VIDEO_STORE='videos';
 const MAP_DB='runline-map-v1';
 const MAP_STORE='maps';
+const DEFAULTS_KEY='runline-last-defaults-v1';
 const defaultState={dogs:[],trials:[],runs:[]};
 const OBSTACLE_TYPES=[
   {id:'jump',code:'J',name:'Jump'},
@@ -74,6 +75,9 @@ let mapPanX=0;
 let mapPanY=0;
 let mapGesturePointers=new Map();
 let mapGestureStart=null;
+let mapFocusMode=false;
+let focusWasExpanded=false;
+let focusWasNavMode=false;
 const CLOUD_DELETE_KEY='runline-cloud-deletes-v1';
 const $=id=>document.getElementById(id);
 
@@ -99,6 +103,24 @@ function persist(){
 }
 function uid(){return crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)}
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1600)}
+function haptic(kind='light',el=null){
+  const ms=kind==='success'?18:9;
+  if(typeof navigator.vibrate==='function')navigator.vibrate(ms);
+  else if(el){el.classList.remove('microFeedback');void el.offsetWidth;el.classList.add('microFeedback');setTimeout(()=>el.classList.remove('microFeedback'),170)}
+}
+function loadLastDefaults(){try{return JSON.parse(localStorage.getItem(DEFAULTS_KEY)||'{}')}catch{return {}}}
+function saveLastDefaults(){
+  const d={dogId:$('courseDog')?.value||'',trialId:$('courseTrial')?.value||'',className:$('courseClass')?.value.trim()||'',judge:$('courseJudge')?.value.trim()||''};
+  try{localStorage.setItem(DEFAULTS_KEY,JSON.stringify(d))}catch{}
+}
+function applyLastDefaults(){
+  const d=loadLastDefaults();
+  if(d.dogId&&state.dogs.some(x=>x.id===d.dogId))$('courseDog').value=d.dogId;
+  if(d.trialId&&state.trials.some(x=>x.id===d.trialId))$('courseTrial').value=d.trialId;
+  if(d.className)$('courseClass').value=d.className;
+  if(d.judge)$('courseJudge').value=d.judge;
+  updateRingsideSummary();
+}
 function updatePlannerStatus(){
   const local=$('localSaveBadge'),cloud=$('plannerCloudBadge');
   if(local){
@@ -135,6 +157,7 @@ function setRingsideMode(on){
   ringsideMode=!!on;
   document.body.classList.toggle('ringside',ringsideMode);
   const b=$('ringsideBtn');if(b)b.textContent=ringsideMode?'Exit ringside':'Ringside mode';
+  if(ringsideMode)haptic('light',b);
   updateRingsideSummary();
   setTimeout(()=>{drawCanvas();$('mapCard')?.scrollIntoView({block:'start'})},30);
 }
@@ -229,7 +252,27 @@ function setMapExpanded(on){
   setTimeout(drawCanvas,30);
 }
 $('mapExpandBtn').addEventListener('click',()=>setMapExpanded(!mapExpanded));
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&mapExpanded)setMapExpanded(false)});
+function setMapFocus(on){
+  mapFocusMode=!!on;
+  const card=$('mapCard');if(!card)return;
+  if(mapFocusMode){
+    focusWasExpanded=mapExpanded;focusWasNavMode=mapNavMode;
+    if(!mapExpanded)setMapExpanded(true);
+    card.classList.add('mapFocus');document.body.classList.add('mapFocusOpen');
+    $('mapFocusExitBtn')?.classList.remove('hidden');
+    setMapNavMode(true);haptic('light',$('mapFocusBtn'));
+  }else{
+    card.classList.remove('mapFocus');document.body.classList.remove('mapFocusOpen');
+    $('mapFocusExitBtn')?.classList.add('hidden');
+    setMapNavMode(focusWasNavMode);
+    if(!focusWasExpanded&&mapExpanded)setMapExpanded(false);
+    focusWasExpanded=false;focusWasNavMode=false;
+  }
+  setTimeout(drawCanvas,30);
+}
+$('mapFocusBtn')?.addEventListener('click',()=>setMapFocus(true));
+$('mapFocusExitBtn')?.addEventListener('click',()=>setMapFocus(false));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&mapFocusMode)setMapFocus(false);else if(e.key==='Escape'&&mapExpanded)setMapExpanded(false)});
 window.addEventListener('resize',()=>{if(mapExpanded)setTimeout(drawCanvas,20)});
 
 function switchView(id){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===id));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===id));showPlannerBottomNav(id==='planner');if(id==='planner'){updateRingsideSummary();setTimeout(drawCanvas,40)}else if(ringsideMode)setRingsideMode(false)}
@@ -270,7 +313,7 @@ function deleteTrial(id){
   toast('Trial deleted. Saved runs were kept.');
 }
 window.deleteTrial=deleteTrial;
-function renderSelectors(){const dogVal=$('courseDog').value,trialVal=$('courseTrial').value;const dogOpts='<option value="">Choose dog…</option>'+state.dogs.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');const trialOpts='<option value="">Choose trial…</option>'+[...state.trials].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');$('courseDog').innerHTML=dogOpts;$('courseTrial').innerHTML=trialOpts;if(state.dogs.some(d=>d.id===dogVal))$('courseDog').value=dogVal;if(state.trials.some(t=>t.id===trialVal))$('courseTrial').value=trialVal}
+function renderSelectors(){const dogVal=$('courseDog').value,trialVal=$('courseTrial').value;const dogOpts='<option value="">Choose dog…</option>'+state.dogs.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');const trialOpts='<option value="">Choose trial…</option>'+[...state.trials].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');$('courseDog').innerHTML=dogOpts;$('courseTrial').innerHTML=trialOpts;if(state.dogs.some(d=>d.id===dogVal))$('courseDog').value=dogVal;if(state.trials.some(t=>t.id===trialVal))$('courseTrial').value=trialVal;if(!currentRunId&&!dogVal&&!trialVal){const d=loadLastDefaults();if(d.dogId&&state.dogs.some(x=>x.id===d.dogId))$('courseDog').value=d.dogId;if(d.trialId&&state.trials.some(x=>x.id===d.trialId))$('courseTrial').value=d.trialId}}
 function renderStats(){const n=state.runs.length,q=state.runs.filter(r=>r.result==='Q').length,clean=state.runs.filter(r=>Number(r.faults)===0&&r.result==='Q').length;$('statRuns').textContent=n;$('statQ').textContent=n?Math.round(q/n*100)+'%':'0%';$('statClean').textContent=clean}
 function renderHistory(){
   const q=($('historySearch')?.value||'').toLowerCase();
@@ -352,7 +395,7 @@ function drawObstacle(o,selected=false){
 function obstacleNear(p,limit=38){for(let i=obstacles.length-1;i>=0;i--){const o=obstacles[i];if(Math.hypot(p.x-o.x,p.y-o.y)<=limit)return o}return null}
 function nearestObstacle(p,limit=115){let best=null,bestD=Infinity;for(const o of obstacles){const d=Math.hypot(p.x-o.x,p.y-o.y);if(d<bestD&&d<=limit){best=o;bestD=d}}return best}
 function nextObstacleNumber(){return obstacles.length?Math.max(...obstacles.map(o=>Number(o.number)||0))+1:1}
-function addObstacle(type,p){markPlannerDirty();const o={id:uid(),number:nextObstacleNumber(),type:type||'other',note:'',x:p.x,y:p.y};obstacles.push(o);actionHistory.push({type:'obstacle',id:o.id});selectedObstacleId=o.id;renderObstacleList();refreshObstacleSelect();showObstacleEditor(o);drawCanvas();return o}
+function addObstacle(type,p){markPlannerDirty();const o={id:uid(),number:nextObstacleNumber(),type:type||'other',note:'',x:p.x,y:p.y};obstacles.push(o);actionHistory.push({type:'obstacle',id:o.id});selectedObstacleId=o.id;renderObstacleList();refreshObstacleSelect();showObstacleEditor(o);drawCanvas();haptic('light',canvas);return o}
 function pointFromEvent(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}}
 function markerNear(p,limit=42){for(let i=markers.length-1;i>=0;i--){const m=markers[i];if(!shouldShowLayer(m.layer||'plan'))continue;if(Math.hypot(p.x-m.x,p.y-m.y)<=limit)return m}return null}
 function strokeNear(p,limit=32){for(let i=strokes.length-1;i>=0;i--){const s=strokes[i];if(isPlanStroke(s)&&!$('showPlanLayer').checked)continue;if(isReviewStroke(s)&&!$('showReviewLayer').checked)continue;for(const q of s.points){if(Math.hypot(p.x-q.x,p.y-q.y)<limit)return s}}return null}
@@ -442,10 +485,20 @@ $('closeObstacleEditor').addEventListener('click',()=>{selectedObstacleId=null;h
 $('saveObstacleBtn').addEventListener('click',()=>{const o=obstacles.find(x=>x.id===selectedObstacleId);if(!o)return;const n=Math.max(1,Number($('editObstacleNumber').value)||1);o.number=n;o.type=$('editObstacleType').value;o.note=$('editObstacleNote').value.trim();renderObstacleList();renderMarkerList();refreshObstacleSelect();drawCanvas();toast('Obstacle updated.')});
 $('deleteObstacleBtn').addEventListener('click',()=>{if(!selectedObstacleId)return;deleteObstacleById(selectedObstacleId);drawCanvas();toast('Obstacle deleted.')});
 
-function clearForm(keepTrial=false){currentRunId=null;plannerDirty=false;plannerLocalSaved=false;plannerCloudState=cloudUser?'pending':'off';updatePlannerStatus();resetMapView();const keep=$('courseTrial').value;['courseClass','courseRound','courseJudge','runTime','runFaults','runPlacement','runSpeed','runPoints','worked','happened','trainNext'].forEach(id=>$(id).value='');$('runResult').value='';$('mapUpload').value='';strokes=[];markers=[];obstacles=[];actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();resetVideoUI();renderMarkerList();renderObstacleList();refreshObstacleSelect();loadBackground(null);if(!keepTrial)$('courseTrial').value='';else $('courseTrial').value=keep;setPhase('plan')}
-$('clearCourseBtn').addEventListener('click',()=>clearForm(false));
+function clearForm(keepTrial=false,useDefaults=true){currentRunId=null;plannerDirty=false;plannerLocalSaved=false;plannerCloudState=cloudUser?'pending':'off';updatePlannerStatus();resetMapView();const keep=$('courseTrial').value;['courseClass','courseRound','courseJudge','runTime','runFaults','runPlacement','runSpeed','runPoints','worked','happened','trainNext'].forEach(id=>$(id).value='');$('runResult').value='';$('mapUpload').value='';strokes=[];markers=[];obstacles=[];actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();resetVideoUI();renderMarkerList();renderObstacleList();refreshObstacleSelect();loadBackground(null);$('courseDog').value='';if(!keepTrial)$('courseTrial').value='';else $('courseTrial').value=keep;setPhase('plan');if(useDefaults)applyLastDefaults();updateQuickResultButtons();updateRingsideSummary()}
+$('clearCourseBtn').addEventListener('click',()=>clearForm(false,true));
+$('nextRunBtn')?.addEventListener('click',()=>{
+  if(plannerDirty&&!confirm('Start the next run and discard these unsaved changes?'))return;
+  const context={dogId:$('courseDog').value,trialId:$('courseTrial').value,judge:$('courseJudge').value.trim()};
+  clearForm(false,false);
+  if(context.dogId&&state.dogs.some(d=>d.id===context.dogId))$('courseDog').value=context.dogId;
+  if(context.trialId&&state.trials.some(t=>t.id===context.trialId))$('courseTrial').value=context.trialId;
+  $('courseJudge').value=context.judge;
+  updateRingsideSummary();markPlannerDirty();haptic('light',$('nextRunBtn'));
+  toast('Next run ready — dog, trial and judge kept.');
+});
 function currentMapData(){return mapDataOriginal||null}
-$('saveCourseBtn').addEventListener('click',async()=>{if(!$('courseDog').value)return toast('Choose a dog.');if(!$('courseTrial').value)return toast('Choose a trial.');if(!$('courseClass').value.trim())return toast('Add the class name.');const existing=currentRunId?state.runs.find(x=>x.id===currentRunId):null;const runId=currentRunId||uid();const mapData=currentMapData();if(mapData){try{await saveMapData(runId,mapData)}catch(e){console.error(e);return toast('Could not store the course map on this device.')}}if(pendingVideoFile){try{await saveVideoBlob(runId,pendingVideoFile);videoMeta={name:pendingVideoFile.name,type:pendingVideoFile.type,size:pendingVideoFile.size};pendingVideoFile=null;renderVideoMeta()}catch(e){console.error(e);return toast('Could not store the video on this device.')}}const r={id:runId,createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),dogId:$('courseDog').value,trialId:$('courseTrial').value,className:$('courseClass').value.trim(),round:$('courseRound').value.trim(),judge:$('courseJudge').value.trim(),mapData:null,hasMap:!!mapData||!!existing?.hasMap||!!existing?.mapData,strokes:structuredClone(strokes),markers:structuredClone(markers),obstacles:structuredClone(obstacles),video:videoMeta?structuredClone(videoMeta):null,videoNotes:structuredClone(videoNotes),time:$('runTime').value,faults:$('runFaults').value,result:$('runResult').value,placement:$('runPlacement').value.trim(),speed:$('runSpeed').value,points:$('runPoints').value,worked:$('worked').value.trim(),happened:$('happened').value.trim(),trainNext:$('trainNext').value.trim()};const idx=state.runs.findIndex(x=>x.id===r.id);if(idx>=0)state.runs[idx]=r;else state.runs.push(r);currentRunId=r.id;if(!persist())return;markPlannerSaved();updateQuickResultButtons();toast('Run + course map saved.')} );
+$('saveCourseBtn').addEventListener('click',async()=>{if(!$('courseDog').value)return toast('Choose a dog.');if(!$('courseTrial').value)return toast('Choose a trial.');if(!$('courseClass').value.trim())return toast('Add the class name.');const existing=currentRunId?state.runs.find(x=>x.id===currentRunId):null;const runId=currentRunId||uid();const mapData=currentMapData();if(mapData){try{await saveMapData(runId,mapData)}catch(e){console.error(e);return toast('Could not store the course map on this device.')}}if(pendingVideoFile){try{await saveVideoBlob(runId,pendingVideoFile);videoMeta={name:pendingVideoFile.name,type:pendingVideoFile.type,size:pendingVideoFile.size};pendingVideoFile=null;renderVideoMeta()}catch(e){console.error(e);return toast('Could not store the video on this device.')}}const r={id:runId,createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),dogId:$('courseDog').value,trialId:$('courseTrial').value,className:$('courseClass').value.trim(),round:$('courseRound').value.trim(),judge:$('courseJudge').value.trim(),mapData:null,hasMap:!!mapData||!!existing?.hasMap||!!existing?.mapData,strokes:structuredClone(strokes),markers:structuredClone(markers),obstacles:structuredClone(obstacles),video:videoMeta?structuredClone(videoMeta):null,videoNotes:structuredClone(videoNotes),time:$('runTime').value,faults:$('runFaults').value,result:$('runResult').value,placement:$('runPlacement').value.trim(),speed:$('runSpeed').value,points:$('runPoints').value,worked:$('worked').value.trim(),happened:$('happened').value.trim(),trainNext:$('trainNext').value.trim()};const idx=state.runs.findIndex(x=>x.id===r.id);if(idx>=0)state.runs[idx]=r;else state.runs.push(r);currentRunId=r.id;if(!persist())return;saveLastDefaults();markPlannerSaved();updateQuickResultButtons();haptic('success',$('saveCourseBtn'));toast('Run + course map saved.')} );
 $('duplicateBtn').addEventListener('click',()=>{currentRunId=null;markPlannerDirty();$('courseRound').value='';$('runTime').value=$('runFaults').value=$('runPlacement').value=$('runSpeed').value=$('runPoints').value='';$('runResult').value='';$('worked').value=$('happened').value=$('trainNext').value='';strokes=strokes.filter(s=>s.tool==='planned');markers=markers.filter(m=>m.layer==='plan');videoNotes=[];videoMeta=null;pendingVideoFile=null;clearVideoObjectUrl();$('videoUpload').value='';showVideoBlob(null);$('videoPlaceholder').textContent='Add a run video to create timestamped obstacle notes.';actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();renderVideoNotes();renderMarkerList();renderObstacleList();refreshObstacleSelect();setPhase('plan');drawCanvas();toast('Duplicated — plan kept, review and video cleared.')});
 
 
@@ -845,7 +898,7 @@ if('serviceWorker' in navigator && (location.protocol==='https:' || location.hos
 }
 $('ringsideBtn')?.addEventListener('click',()=>setRingsideMode(!ringsideMode));
 $('runResult')?.addEventListener('change',()=>{updateQuickResultButtons();markPlannerDirty()});
-document.querySelectorAll('[data-quick-result]').forEach(b=>b.addEventListener('click',()=>{$('runResult').value=b.dataset.quickResult;updateQuickResultButtons();markPlannerDirty();toast(b.dataset.quickResult+' selected.')}));
+document.querySelectorAll('[data-quick-result]').forEach(b=>b.addEventListener('click',()=>{$('runResult').value=b.dataset.quickResult;updateQuickResultButtons();markPlannerDirty();haptic('light',b);toast(b.dataset.quickResult+' selected.')}));
 ['courseDog','courseTrial','courseClass','courseRound','courseJudge','runTime','runFaults','runPlacement','runSpeed','runPoints','worked','happened','trainNext'].forEach(id=>$(id)?.addEventListener('input',()=>{markPlannerDirty();updateRingsideSummary()}));
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-planner-nav]');if(!b)return;
@@ -860,4 +913,4 @@ window.addEventListener('offline',()=>{plannerCloudState=cloudUser?'pending':'of
 renderInstallState();
 initCloud();
 
-initCollapsiblePanels();normalizeAnnotations();renderAll();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');updatePlannerStatus();updateQuickResultButtons();migrateInlineMaps().catch(e=>console.warn('Map migration failed',e));
+initCollapsiblePanels();normalizeAnnotations();renderAll();applyLastDefaults();refreshObstacleSelect();resetVideoUI();loadBackground(null);setPhase('plan');updatePlannerStatus();updateQuickResultButtons();migrateInlineMaps().catch(e=>console.warn('Map migration failed',e));
