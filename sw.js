@@ -1,8 +1,8 @@
-const CACHE='runline-v1.5.1-shell-1';
+const CACHE='runline-v1.5.2-shell-1';
 const APP_SHELL=[
   './',
   './index.html',
-  './app.js?v=1.5.1',
+  './app.js?v=1.5.2',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
