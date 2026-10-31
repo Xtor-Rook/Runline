@@ -460,7 +460,26 @@ function finishPointer(e){if(mapNavMode){if(e?.pointerId!=null)mapGesturePointer
 canvas.addEventListener('pointerup',finishPointer);canvas.addEventListener('pointercancel',finishPointer);
 
 $('showObstaclesLayer').addEventListener('change',drawCanvas);$('showPlanLayer').addEventListener('change',drawCanvas);$('showReviewLayer').addEventListener('change',drawCanvas);
-$('undoBtn').addEventListener('click',()=>{const a=actionHistory.pop();if(!a){if(markers.length){markers.pop();renderMarkerList();drawCanvas();return}if(strokes.length){strokes.pop();drawCanvas();return}return}if(a.type==='marker')markers=markers.filter(m=>m.id!==a.id);else if(a.type==='obstacle')deleteObstacleById(a.id);else strokes=strokes.filter(s=>s.id!==a.id);if(selectedMarkerId===a.id){selectedMarkerId=null;hideMarkerEditor()}renderMarkerList();renderObstacleList();drawCanvas()});
+function undoLastAction(sourceBtn=null){
+  const a=actionHistory.pop();
+  let changed=false;
+  if(!a){
+    if(markers.length){markers.pop();changed=true}
+    else if(strokes.length){strokes.pop();changed=true}
+  }else{
+    if(a.type==='marker'){markers=markers.filter(m=>m.id!==a.id);changed=true}
+    else if(a.type==='obstacle'){deleteObstacleById(a.id);changed=true}
+    else {strokes=strokes.filter(s=>s.id!==a.id);changed=true}
+    if(selectedMarkerId===a.id){selectedMarkerId=null;hideMarkerEditor()}
+    if(selectedObstacleId===a.id){selectedObstacleId=null;hideObstacleEditor()}
+  }
+  if(!changed){toast('Nothing to undo.');return}
+  markPlannerDirty();
+  renderMarkerList();renderObstacleList();refreshObstacleSelect();drawCanvas();
+  haptic('light',sourceBtn);
+}
+$('undoBtn').addEventListener('click',()=>undoLastAction($('undoBtn')));
+$('mapUndoBtn')?.addEventListener('click',()=>undoLastAction($('mapUndoBtn')));
 $('clearAnnotationsBtn').addEventListener('click',()=>{if(confirm('Clear all obstacles, planned lines, review lines, and markers?')){strokes=[];markers=[];obstacles=[];actionHistory=[];selectedMarkerId=null;selectedObstacleId=null;linkTargetObstacleId=null;hideMarkerEditor();hideObstacleEditor();renderMarkerList();renderObstacleList();refreshObstacleSelect();drawCanvas()}});
 $('mapUpload').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{loadBackground(rd.result);markPlannerDirty()};rd.readAsDataURL(f)});
 $('mapNavBtn')?.addEventListener('click',()=>setMapNavMode(!mapNavMode));
