@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#111214" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://ubljegtzykqyajetfdas.supabase.co wss://ubljegtzykqyajetfdas.supabase.co; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
-<title>Runline v1.5.2 — Agility Trial Planner</title>
+<title>Runline v1.6 — Agility Trial Planner</title>
 <meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
 <meta name="application-name" content="Runline" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -111,6 +111,17 @@ body.mapExpandedOpen{overflow:hidden}
 body.ringside .topbar,body.ringside .tabs{display:none}body.ringside .plannerHeader{position:sticky;top:max(6px,env(safe-area-inset-top));z-index:30;padding:11px}body.ringside .plannerHeader h2{font-size:17px;margin-bottom:2px}body.ringside .plannerHeader .panelActions #togglePanelsBtn,body.ringside .plannerHeader #clearCourseBtn{display:none}body.ringside #ringsideSummary{display:block!important}body.ringside #mapCard{grid-column:span 12;order:1}body.ringside #quickResultCard{order:2}body.ringside #courseToolsCard{grid-column:span 12;order:3}body.ringside #videoReviewCard{order:4}body.ringside #runResultCard{order:5}body.ringside #courseToolsCard>details,body.ringside #markerEditor,body.ringside #obstacleEditor,body.ringside #obstacleListWrap,body.ringside #markerListWrap,body.ringside #courseToolsCard>.toolrow{display:none!important}
 body.ringside .app{padding-top:max(8px,env(safe-area-inset-top))}
 @media(max-width:700px){.plannerHeader .panelActions{width:100%;justify-content:flex-start}.quickResultButtons{width:100%;display:grid;grid-template-columns:repeat(4,1fr)}.quickResultBtn{min-width:0;padding:13px 5px}.plannerBottomNav{bottom:max(6px,env(safe-area-inset-bottom));width:calc(100% - 12px)}}
+
+/* v1.6 lightweight trial-day polish */
+.mapFocusExit{position:absolute;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));z-index:10020;background:rgba(15,18,21,.88);backdrop-filter:blur(12px)}
+.mapCard.mapFocus{position:fixed;inset:0;z-index:10010;margin:0;border-radius:0;padding:0;background:#080a0c;display:flex;overflow:hidden}
+.mapCard.mapFocus .layerbar{display:none}
+.mapCard.mapFocus .plannerWrap{flex:1 1 auto;width:100%;height:100%;min-height:100vh;border:0;border-radius:0;background:#080a0c;display:flex;align-items:center;justify-content:center}
+.mapCard.mapFocus #courseCanvas{max-width:100%;max-height:100%;margin:auto}
+.mapCard.mapFocus .mapFocusExit{display:inline-flex!important}
+body.mapFocusOpen{overflow:hidden}
+.microFeedback{animation:microFeedback .14s ease}
+@keyframes microFeedback{0%{filter:brightness(1)}50%{filter:brightness(1.18)}100%{filter:brightness(1)}}
 </style>
 </head>
 <body>
@@ -142,7 +153,7 @@ body.ringside .app{padding-top:max(8px,env(safe-area-inset-top))}
 
   <section id="planner" class="view">
     <div class="grid">
-      <div class="card span12 plannerHeader" id="plannerHeader"><div class="row between"><div><h2>Course planner</h2><div class="muted small">Plan the handling, then review the run on the same map.</div><div id="ringsideSummary" class="small muted hidden" style="margin-top:4px"></div></div><div class="panelActions"><span id="localSaveBadge" class="badge">Not saved</span><span id="plannerCloudBadge" class="badge">Cloud off</span><button class="btn secondary mini" id="ringsideBtn">Ringside mode</button><button class="btn secondary mini" id="togglePanelsBtn">Collapse panels</button><button class="btn secondary" id="clearCourseBtn">New course</button></div></div></div>
+      <div class="card span12 plannerHeader" id="plannerHeader"><div class="row between"><div><h2>Course planner</h2><div class="muted small">Plan the handling, then review the run on the same map.</div><div id="ringsideSummary" class="small muted hidden" style="margin-top:4px"></div></div><div class="panelActions"><span id="localSaveBadge" class="badge">Not saved</span><span id="plannerCloudBadge" class="badge">Cloud off</span><button class="btn secondary mini" id="ringsideBtn">Ringside mode</button><button class="btn secondary mini" id="nextRunBtn">Next run</button><button class="btn secondary mini" id="togglePanelsBtn">Collapse panels</button><button class="btn secondary" id="clearCourseBtn">New course</button></div></div></div>
 
       <div class="card span4">
         <details class="collapseSection" data-collapse-key="course-details" open>
@@ -250,10 +261,11 @@ body.ringside .app{padding-top:max(8px,env(safe-area-inset-top))}
             <button class="btn secondary mini" id="mapNavBtn" type="button">✋ Pan / zoom</button>
             <button class="btn secondary mini hidden" id="mapResetBtn" type="button">Reset view</button>
             <span id="mapZoomLabel" class="badge">100%</span>
+            <button class="btn secondary mini" id="mapFocusBtn" type="button">◎ Focus</button>
             <button class="btn secondary mini mapExpandBtn" id="mapExpandBtn" type="button">⛶ Full screen</button>
           </div>
         </div>
-        <div class="plannerWrap" id="plannerWrap"><canvas id="courseCanvas" width="1200" height="850"></canvas><div id="canvasHint" class="canvasHint">Upload a course-map photo or screenshot to begin.</div></div>
+        <div class="plannerWrap" id="plannerWrap"><button class="btn secondary mini mapFocusExit hidden" id="mapFocusExitBtn" type="button">← Back</button><canvas id="courseCanvas" width="1200" height="850"></canvas><div id="canvasHint" class="canvasHint">Upload a course-map photo or screenshot to begin.</div></div>
       </div>
 
       <details class="card span12 collapseCard" id="videoReviewCard" data-collapse-key="video-review">
@@ -378,6 +390,6 @@ body.ringside .app{padding-top:max(8px,env(safe-area-inset-top))}
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js"></script>
-<script src="./app.js?v=1.5.2"></script>
+<script src="./app.js?v=1.6"></script>
 </body>
 </html>
