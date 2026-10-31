@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#111214" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://ubljegtzykqyajetfdas.supabase.co wss://ubljegtzykqyajetfdas.supabase.co; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
-<title>Runline v1.6 — Agility Trial Planner</title>
+<title>Runline v1.6.1 — Agility Trial Planner</title>
 <meta name="description" content="Runline — agility trial planner, course map journal, run video review and handling analysis." />
 <meta name="application-name" content="Runline" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -258,6 +258,7 @@ body.mapFocusOpen{overflow:hidden}
           <div class="row">
             <span class="badge mapExpandedBadge">Map workspace</span>
             <div id="activeToolLabel" class="small muted">Drawing planned line</div>
+            <button class="btn secondary mini" id="mapUndoBtn" type="button">↶ Undo</button>
             <button class="btn secondary mini" id="mapNavBtn" type="button">✋ Pan / zoom</button>
             <button class="btn secondary mini hidden" id="mapResetBtn" type="button">Reset view</button>
             <span id="mapZoomLabel" class="badge">100%</span>
@@ -390,6 +391,6 @@ body.mapFocusOpen{overflow:hidden}
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js"></script>
-<script src="./app.js?v=1.6"></script>
+<script src="./app.js?v=1.6.1"></script>
 </body>
 </html>
