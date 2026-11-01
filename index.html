@@ -13,9 +13,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Runline" />
 <link rel="manifest" href="manifest.webmanifest" />
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
-<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
-<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
 <style>
 :root{
   --bg:#0d0f11;--panel:#15181c;--panel2:#1b1f24;--line:#2b3138;--text:#f2f4f5;
@@ -144,7 +144,7 @@ body.mapFocusOpen{overflow:hidden}
   <section id="today" class="view active">
     <div class="grid">
       <div class="card span12"><div class="row between"><div><h2>Trial day</h2><div class="muted small">Keep the important stuff one tap away.</div></div><button class="btn" id="newTrialBtn">+ New trial</button></div></div>
-      <div class="card span4" id="courseToolsCard"><div class="stat"><div class="value" id="statRuns">0</div><div class="label">Runs logged</div></div></div>
+      <div class="card span4"><div class="stat"><div class="value" id="statRuns">0</div><div class="label">Runs logged</div></div></div>
       <div class="card span4"><div class="stat"><div class="value" id="statQ">0%</div><div class="label">Qualifying rate</div></div></div>
       <div class="card span4"><div class="stat"><div class="value" id="statClean">0</div><div class="label">Clean runs</div></div></div>
       <div class="card span12"><h3>Current / recent trials</h3><div id="trialList" class="list"></div></div>
@@ -155,7 +155,7 @@ body.mapFocusOpen{overflow:hidden}
     <div class="grid">
       <div class="card span12 plannerHeader" id="plannerHeader"><div class="row between"><div><h2>Course planner</h2><div class="muted small">Plan the handling, then review the run on the same map.</div><div id="ringsideSummary" class="small muted hidden" style="margin-top:4px"></div></div><div class="panelActions"><span id="localSaveBadge" class="badge">Not saved</span><span id="plannerCloudBadge" class="badge">Cloud off</span><button class="btn secondary mini" id="ringsideBtn">Ringside mode</button><button class="btn secondary mini" id="nextRunBtn">Next run</button><button class="btn secondary mini" id="togglePanelsBtn">Collapse panels</button><button class="btn secondary" id="clearCourseBtn">New course</button></div></div></div>
 
-      <div class="card span4">
+      <div class="card span4" id="courseToolsCard">
         <details class="collapseSection" data-collapse-key="course-details" open>
           <summary>Course details</summary>
           <div class="collapseBody">
